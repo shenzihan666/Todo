@@ -1,30 +1,37 @@
 package com.todolist.app.data.repository
 
-import com.todolist.app.data.network.dto.HealthResponse
+import com.todolist.app.data.network.ApiService
+import com.todolist.app.domain.model.HealthCheckResult
 import com.todolist.app.domain.repository.HealthRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 class HealthRepositoryImpl(
-    private val okHttpClient: OkHttpClient,
-    private val json: Json,
+    private val apiServiceFactory: (String) -> ApiService,
 ) : HealthRepository {
 
-    override suspend fun checkHealth(baseUrl: String): Boolean =
+    override suspend fun checkHealth(baseUrl: String): HealthCheckResult =
         withContext(Dispatchers.IO) {
             runCatching {
-                val root = baseUrl.trim().trimEnd('/') + "/"
-                val url = "${root}api/v1/health"
-                val request = Request.Builder().url(url).get().build()
-                okHttpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@withContext false
-                    val body = response.body?.string() ?: return@withContext false
-                    val parsed = json.decodeFromString<HealthResponse>(body)
-                    parsed.status == "ok"
+                val api = apiServiceFactory(baseUrl)
+                val response = api.getHealth()
+                if (response.status == "ok") {
+                    HealthCheckResult.Connected
+                } else {
+                    HealthCheckResult.Failed("Server status: ${response.status}")
                 }
-            }.getOrDefault(false)
+            }.getOrElse { e ->
+                HealthCheckResult.Failed(e.toUserMessage())
+            }
         }
+}
+
+private fun Throwable.toUserMessage(): String = when (this) {
+    is ConnectException -> "Cannot connect to server"
+    is SocketTimeoutException -> "Connection timed out"
+    is UnknownHostException -> "Unknown host: $message"
+    else -> localizedMessage ?: "Unknown error"
 }

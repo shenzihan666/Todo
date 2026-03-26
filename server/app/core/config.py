@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     database_url: str = ""
 
+    cors_origins: list[str] = ["*"]
+
     host: str = "0.0.0.0"  # noqa: S104
     port: int = 8000
 

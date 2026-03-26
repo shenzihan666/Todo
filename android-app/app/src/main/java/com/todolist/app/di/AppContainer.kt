@@ -28,7 +28,6 @@ class AppContainer(
 
     private val json: Json = Json {
         ignoreUnknownKeys = true
-        isLenient = true
     }
 
     private val okHttpClient: OkHttpClient by lazy {
@@ -47,22 +46,18 @@ class AppContainer(
             .build()
     }
 
-    private val retrofit: Retrofit by lazy {
-        val base = BuildConfig.API_BASE_URL.trimEnd('/') + "/"
+    fun createApiService(baseUrl: String): ApiService {
+        val base = baseUrl.trim().trimEnd('/') + "/"
         val mediaType = "application/json".toMediaType()
-        Retrofit.Builder()
+        return Retrofit.Builder()
             .baseUrl(base)
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory(mediaType))
             .build()
-    }
-
-    @Suppress("unused")
-    private val apiService: ApiService by lazy {
-        retrofit.create(ApiService::class.java)
+            .create(ApiService::class.java)
     }
 
     val healthRepository: HealthRepository by lazy {
-        HealthRepositoryImpl(okHttpClient, json)
+        HealthRepositoryImpl(::createApiService)
     }
 }

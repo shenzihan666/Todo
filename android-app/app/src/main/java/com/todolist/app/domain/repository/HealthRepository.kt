@@ -1,6 +1,7 @@
 package com.todolist.app.domain.repository
 
+import com.todolist.app.domain.model.HealthCheckResult
+
 interface HealthRepository {
-    /** @param baseUrl e.g. `http://192.168.1.1:8000/` (trailing slash optional) */
-    suspend fun checkHealth(baseUrl: String): Boolean
+    suspend fun checkHealth(baseUrl: String): HealthCheckResult
 }

@@ -19,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -33,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.todolist.app.R
 import com.todolist.app.TodoListApplication
+import com.todolist.app.ui.components.TodoListAppBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,9 +75,10 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
+            TodoListAppBar(
+                title = title,
                 navigationIcon = {
                     IconButton(
                         onClick = onNavigateBack,
@@ -144,17 +145,20 @@ fun SettingsScreen(
                 ConnectionUiState.Idle -> stringResource(R.string.status_idle_hint)
                 ConnectionUiState.Checking -> stringResource(R.string.status_checking)
                 ConnectionUiState.Connected -> stringResource(R.string.status_connected)
-                ConnectionUiState.Offline -> stringResource(R.string.status_offline)
+                is ConnectionUiState.Failed -> stringResource(
+                    R.string.status_failed,
+                    connectionState.reason,
+                )
             }
-            val statusStyle = when (connectionState) {
+            val statusColor = when (connectionState) {
                 ConnectionUiState.Connected -> MaterialTheme.colorScheme.primary
-                ConnectionUiState.Offline -> MaterialTheme.colorScheme.error
+                is ConnectionUiState.Failed -> MaterialTheme.colorScheme.error
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
             }
             Text(
                 text = statusText,
                 style = MaterialTheme.typography.bodyLarge,
-                color = statusStyle,
+                color = statusColor,
             )
         }
     }
