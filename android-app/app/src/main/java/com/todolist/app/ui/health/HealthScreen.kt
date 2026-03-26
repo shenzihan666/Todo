@@ -1,73 +1,81 @@
 package com.todolist.app.ui.health
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.todolist.app.R
-import com.todolist.app.TodoListApplication
 
 @Composable
 fun HealthRoute(
+    onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val factory = (LocalContext.current.applicationContext as TodoListApplication).healthViewModelFactory()
-    val viewModel: HealthViewModel = viewModel(factory = factory)
-    LaunchedEffect(Unit) { viewModel.refresh() }
-    val state by viewModel.state.collectAsStateWithLifecycle()
     HealthScreen(
         modifier = modifier,
-        state = state,
-        onRefresh = { viewModel.refresh() },
+        onNavigateToSettings = onNavigateToSettings,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HealthScreen(
-    state: ConnectionUiState,
-    onRefresh: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val statusText = when (state) {
-        ConnectionUiState.Checking -> stringResource(R.string.status_checking)
-        ConnectionUiState.Connected -> stringResource(R.string.status_connected)
-        ConnectionUiState.Offline -> stringResource(R.string.status_offline)
-    }
-    val refreshLabel = stringResource(R.string.refresh)
-    val refreshDesc = stringResource(R.string.content_desc_refresh)
+    val homeTitle = stringResource(R.string.home_title)
+    val settingsDesc = stringResource(R.string.content_desc_open_settings)
+    var gearRotationTarget by remember { mutableFloatStateOf(0f) }
+    val gearRotation by animateFloatAsState(
+        targetValue = gearRotationTarget,
+        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+        label = "settings_gear_rotation",
+    )
 
     Scaffold(
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onRefresh,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = null,
-                    )
+        topBar = {
+            TopAppBar(
+                title = { Text(homeTitle) },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            gearRotationTarget += 360f
+                            onNavigateToSettings()
+                        },
+                        modifier = Modifier.semantics { contentDescription = settingsDesc },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = null,
+                            modifier = Modifier.rotate(gearRotation),
+                        )
+                    }
                 },
-                text = { Text(refreshLabel) },
-                modifier = Modifier.semantics { contentDescription = refreshDesc },
             )
         },
     ) { innerPadding ->
@@ -80,8 +88,8 @@ fun HealthScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = statusText,
-                style = MaterialTheme.typography.displaySmall,
+                text = stringResource(R.string.home_welcome),
+                style = MaterialTheme.typography.headlineMedium,
                 textAlign = TextAlign.Center,
             )
         }

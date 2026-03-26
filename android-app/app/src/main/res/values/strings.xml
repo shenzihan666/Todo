@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- app_name is set per product flavor (dev / prod) in app/build.gradle.kts -->
-    <string name="status_connected">connected</string>
-    <string name="status_offline">offline</string>
-    <string name="status_checking">checking…</string>
-    <string name="refresh">Check connection</string>
-    <string name="content_desc_refresh">Check server connection</string>
+    <string name="home_title">Home</string>
+    <string name="home_welcome">Welcome</string>
+    <string name="settings">Settings</string>
+    <string name="content_desc_open_settings">Open settings</string>
+    <string name="content_desc_navigate_back">Navigate back</string>
+    <string name="settings_section_server">Server</string>
+    <string name="server_ip_label">Server IP</string>
+    <string name="server_ip_hint">e.g. 192.168.1.1</string>
+    <string name="server_port_note">HTTP port defaults to 8000</string>
+    <string name="test_connection">Test connection</string>
+    <string name="content_desc_test_connection">Test server connection</string>
+    <string name="error_server_ip_required">Enter a server IP address</string>
+    <string name="status_idle_hint">Run a connection test to verify the server.</string>
+    <string name="status_checking">Checking…</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_offline">Offline</string>
 </resources>

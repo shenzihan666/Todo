@@ -1,7 +1,9 @@
 package com.todolist.app.di
 
+import android.content.Context
 import com.todolist.app.BuildConfig
 import com.todolist.app.data.network.ApiService
+import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.data.repository.HealthRepositoryImpl
 import com.todolist.app.domain.repository.HealthRepository
 import kotlinx.serialization.json.Json
@@ -15,7 +17,14 @@ import java.util.concurrent.TimeUnit
 /**
  * Application-scoped dependency graph (manual DI; swap for Hilt/KSP when plugin resolves).
  */
-class AppContainer {
+class AppContainer(
+    context: Context,
+) {
+    private val appContext = context.applicationContext
+
+    val userPreferencesRepository: UserPreferencesRepository by lazy {
+        UserPreferencesRepository(appContext)
+    }
 
     private val json: Json = Json {
         ignoreUnknownKeys = true
@@ -48,11 +57,12 @@ class AppContainer {
             .build()
     }
 
+    @Suppress("unused")
     private val apiService: ApiService by lazy {
         retrofit.create(ApiService::class.java)
     }
 
     val healthRepository: HealthRepository by lazy {
-        HealthRepositoryImpl(apiService)
+        HealthRepositoryImpl(okHttpClient, json)
     }
 }
