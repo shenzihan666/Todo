@@ -9,8 +9,9 @@
 -dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
 -dontwarn javax.annotation.**
 
-# Kotlinx Serialization (DTOs used with Retrofit)
+# Kotlinx Serialization (DTOs used with Retrofit / WebSocket)
 -keepattributes *Annotation*, InnerClasses
 -keepclassmembers class kotlinx.serialization.json.** {
     *** Companion;
 }
+-keep @kotlinx.serialization.Serializable class com.todolist.app.data.speech.** { *; }

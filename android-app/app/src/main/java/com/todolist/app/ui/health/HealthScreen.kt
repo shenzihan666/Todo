@@ -37,7 +37,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.todolist.app.R
+import com.todolist.app.TodoListApplication
 import com.todolist.app.ui.components.TodoListAppBar
 
 @Composable
@@ -45,9 +48,13 @@ fun HealthRoute(
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val app = context.applicationContext as TodoListApplication
+    val speechViewModel: SpeechViewModel = viewModel(factory = app.speechViewModelFactory())
     HealthScreen(
         modifier = modifier,
         onNavigateToSettings = onNavigateToSettings,
+        speechViewModel = speechViewModel,
     )
 }
 
@@ -55,6 +62,7 @@ fun HealthRoute(
 @Composable
 fun HealthScreen(
     onNavigateToSettings: () -> Unit,
+    speechViewModel: SpeechViewModel,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -75,10 +83,12 @@ fun HealthScreen(
             permissionGranted = granted
         }
 
-    val voice = rememberVoiceHoldSpeechRecognizer()
-    val transcript by voice.transcript
-    val isListening by voice.isListening
-    val audioLevel by voice.audioLevel
+    val transcript by speechViewModel.transcript.collectAsStateWithLifecycle()
+    val isListening by speechViewModel.isListening.collectAsStateWithLifecycle()
+    val audioLevel by speechViewModel.audioLevel.collectAsStateWithLifecycle()
+    val errorMessage by speechViewModel.errorMessage.collectAsStateWithLifecycle()
+
+    val displayText = errorMessage ?: transcript
 
     var gearRotationTarget by remember { mutableFloatStateOf(0f) }
     val gearRotation by animateFloatAsState(
@@ -129,9 +139,9 @@ fun HealthScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    if (transcript.isNotEmpty()) {
+                    if (displayText.isNotEmpty()) {
                         Text(
-                            text = transcript,
+                            text = displayText,
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             textAlign = TextAlign.Center,
@@ -144,8 +154,8 @@ fun HealthScreen(
                 isListening = isListening,
                 audioLevel = audioLevel,
                 hasPermission = permissionGranted,
-                onHoldStart = { voice.startListening() },
-                onHoldEnd = { voice.stopListening() },
+                onHoldStart = { speechViewModel.onHoldStart() },
+                onHoldEnd = { speechViewModel.onHoldEnd() },
                 onRequestPermission = {
                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 },

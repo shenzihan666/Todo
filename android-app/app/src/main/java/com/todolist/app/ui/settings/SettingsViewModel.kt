@@ -19,6 +19,13 @@ fun buildServerBaseUrl(host: String, port: Int = DEFAULT_SERVER_PORT): String {
     return "http://$h:$port/"
 }
 
+/** WebSocket URL for speech-to-text (must match server `/api/v1/speech/ws`). */
+fun buildSpeechWebSocketUrl(host: String, port: Int = DEFAULT_SERVER_PORT): String {
+    val h = host.trim()
+    if (h.isEmpty()) return ""
+    return "ws://$h:$port/api/v1/speech/ws"
+}
+
 enum class ServerSettingsError {
     EmptyServerIp,
 }

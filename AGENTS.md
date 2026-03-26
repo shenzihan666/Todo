@@ -43,6 +43,7 @@ api/v1/endpoints/ → schemas/ → services/ → repositories/ → models/
 - **Repositories**: DB access (async SQLAlchemy)
 - **Models**: ORM models (`models/todo.py`, `models/base.py`)
 - **Core**: config, database session, logging, exceptions (`core/`)
+- **Speech (STT)**: WebSocket `GET /api/v1/speech/ws` streams PCM (`pcm_s16le`, 16 kHz mono); Faster-Whisper engine in `services/transcription/` (swap implementations without changing the wire protocol)
 
 ## Key Commands
 
@@ -84,6 +85,7 @@ Two tables (see `db/init/001_schema.sql`):
 - DI: manual `AppContainer` (swap to Hilt when KSP resolves)
 - Flavors: `dev` (HTTP, local API) / `prod` (HTTPS, production API)
 - Config: `local.properties` for `sdk.dir` and optional `local.server.host`
+- Speech: `domain/speech/SpeechTranscriber` + `data/speech/` (OkHttp WebSocket); hold-to-talk uses `AudioRecorder` (16 kHz PCM) → `ws://<host>:8000/api/v1/speech/ws`
 
 ## File Editing Checklist
 

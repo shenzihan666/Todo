@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"  # noqa: S104
     port: int = 8000
 
+    # Faster-Whisper (speech-to-text)
+    whisper_model_size: str = "large-v3"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
+    whisper_vad_filter: bool = True
+    whisper_beam_size: int = 5
+    speech_partial_interval_ms: int = 1500
+    speech_min_partial_bytes: int = 9600
+
     @model_validator(mode="after")
     def _assemble_database_url(self) -> "Settings":
         if not self.database_url:

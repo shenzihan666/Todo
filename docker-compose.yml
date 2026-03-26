@@ -28,6 +28,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: todolist
+      WHISPER_MODEL_SIZE: large-v3
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
     depends_on:
       db:
         condition: service_healthy

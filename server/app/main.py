@@ -1,4 +1,7 @@
+import asyncio
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,11 +10,23 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exceptions import unhandled_exception_handler
 from app.core.logging import configure_logging
+from app.services.transcription.faster_whisper_engine import FasterWhisperEngine
 
 
 def create_app() -> FastAPI:
     configure_logging()
-    app = FastAPI(title="TodoList API", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        engine = FasterWhisperEngine()
+        await asyncio.to_thread(engine.load)
+        app.state.whisper_engine = engine
+        try:
+            yield
+        finally:
+            engine.unload()
+
+    app = FastAPI(title="TodoList API", version="0.1.0", lifespan=lifespan)
 
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):

@@ -7,6 +7,10 @@ ENV PYTHONUNBUFFERED=1
 ENV PIP_DEFAULT_TIMEOUT=120
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml .
 COPY app ./app
 COPY alembic.ini .

@@ -1,3 +1,8 @@
+import os
+
+# Smaller model for tests (faster CI; first run may download weights).
+os.environ.setdefault("WHISPER_MODEL_SIZE", "tiny")
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
