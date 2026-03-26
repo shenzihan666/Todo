@@ -4,7 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     postgres_host: str = "127.0.0.1"
@@ -15,7 +17,7 @@ class Settings(BaseSettings):
 
     database_url: str = ""
 
-    host: str = "0.0.0.0"
+    host: str = "0.0.0.0"  # noqa: S104
     port: int = 8000
 
     @model_validator(mode="after")
@@ -26,6 +28,16 @@ class Settings(BaseSettings):
                 f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
             )
         return self
+
+    @property
+    def database_url_sync(self) -> str:
+        """Sync driver URL for Alembic / tooling (postgresql+psycopg2)."""
+        url = self.database_url
+        if url.startswith("postgresql+asyncpg://"):
+            return url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+        if url.startswith("postgresql://"):
+            return url
+        return url
 
 
 settings = Settings()

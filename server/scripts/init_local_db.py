@@ -9,7 +9,7 @@ import asyncpg
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.config import settings  # noqa: E402
+from app.core.config import settings  # noqa: E402
 
 SCHEMA = ROOT.parent / "db" / "init" / "001_schema.sql"
 
@@ -24,7 +24,8 @@ async def main() -> None:
     )
     try:
         row = await conn.fetchrow(
-            "SELECT 1 FROM pg_database WHERE datname = $1", settings.postgres_db,
+            "SELECT 1 FROM pg_database WHERE datname = $1",
+            settings.postgres_db,
         )
         if not row:
             await conn.execute(f'CREATE DATABASE "{settings.postgres_db}"')

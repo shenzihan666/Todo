@@ -1,16 +1,22 @@
--- Initial schema (PostgreSQL best practices: identity PKs, timestamptz, snake_case)
-CREATE TABLE IF NOT EXISTS app_metadata (
-    metadata_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    key TEXT NOT NULL,
-    value TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT app_metadata_key_unique UNIQUE (key),
-    CONSTRAINT app_metadata_key_nonempty CHECK (length(trim(key)) > 0)
-);
+-- Initial schema for TodoList (also reflected in Alembic migrations).
 
-CREATE INDEX IF NOT EXISTS app_metadata_updated_at_idx ON app_metadata (updated_at);
+CREATE TABLE IF NOT EXISTS app_metadata (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(255) NOT NULL UNIQUE,
+    value TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 INSERT INTO app_metadata (key, value)
 VALUES ('schema_version', '1')
 ON CONFLICT (key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS todos (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(512) NOT NULL,
+    description TEXT,
+    completed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
