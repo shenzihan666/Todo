@@ -1,0 +1,7 @@
+# Copy useful lines into local.properties (same folder). local.properties is gitignored.
+# sdk.dir is added by Android Studio automatically; do not commit local.properties.
+
+# --- Backend server on your PC ---
+# Your PC's WiFi IPv4 (Windows: ipconfig → WLAN → IPv4). Phone must be on the same network.
+# local.server.host=192.168.1.23
+# local.server.port=8000

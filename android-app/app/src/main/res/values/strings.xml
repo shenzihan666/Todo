@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- app_name is set per product flavor (dev / prod) in app/build.gradle.kts -->
+    <string name="status_connected">connected</string>
+    <string name="status_offline">offline</string>
+    <string name="status_checking">checking…</string>
+    <string name="refresh">Check connection</string>
+    <string name="content_desc_refresh">Check server connection</string>
+</resources>

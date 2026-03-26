@@ -1,0 +1,37 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.cursor/
+.idea/
+*.iml
+.vscode/
+
+# Environment
+.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv/
+.pytest_cache/
+dist/
+*.egg-info/
+
+# Android / Gradle
+*.apk
+*.aab
+*.class
+*.dex
+build/
+.gradle/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Node (if added later)
+node_modules/
