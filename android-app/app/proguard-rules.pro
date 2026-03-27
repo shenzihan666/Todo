@@ -15,3 +15,4 @@
     *** Companion;
 }
 -keep @kotlinx.serialization.Serializable class com.todolist.app.data.speech.** { *; }
+-keep @kotlinx.serialization.Serializable class com.todolist.app.data.network.dto.** { *; }

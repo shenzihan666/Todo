@@ -8,6 +8,7 @@
     <string name="content_desc_open_settings">Open settings</string>
     <string name="content_desc_navigate_back">Navigate back</string>
     <string name="settings_section_server">Server</string>
+    <string name="settings_section_account">Account</string>
     <string name="server_ip_label">Server IP</string>
     <string name="server_ip_hint">e.g. 192.168.1.1</string>
     <string name="server_port_note">HTTP port defaults to 8000</string>
@@ -18,4 +19,15 @@
     <string name="status_checking">Checking…</string>
     <string name="status_connected">Connected</string>
     <string name="status_failed">Connection failed: %1$s</string>
+
+    <string name="auth_title">Sign in</string>
+    <string name="auth_mode_login">Log in</string>
+    <string name="auth_mode_register">Register</string>
+    <string name="auth_username">Username</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_submit_login">Log in</string>
+    <string name="auth_submit_register">Create account</string>
+    <string name="auth_server_hint">Set the server IP in Settings before signing in.</string>
+    <string name="logout">Log out</string>
+    <string name="content_desc_logout">Log out</string>
 </resources>

@@ -38,6 +38,7 @@ import com.todolist.app.ui.components.TodoListAppBar
 @Composable
 fun SettingsRoute(
     onNavigateBack: () -> Unit,
+    onLoggedOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val factory = (LocalContext.current.applicationContext as TodoListApplication).settingsViewModelFactory()
@@ -49,6 +50,7 @@ fun SettingsRoute(
     SettingsScreen(
         modifier = modifier,
         onNavigateBack = onNavigateBack,
+        onLogout = { viewModel.logout(onLoggedOut) },
         serverIp = draftIp,
         onServerIpChange = viewModel::onServerIpChange,
         onTestConnection = viewModel::testConnection,
@@ -61,6 +63,7 @@ fun SettingsRoute(
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
+    onLogout: () -> Unit,
     serverIp: String,
     onServerIpChange: (String) -> Unit,
     onTestConnection: () -> Unit,
@@ -72,6 +75,7 @@ fun SettingsScreen(
     val backDesc = stringResource(R.string.content_desc_navigate_back)
     val testLabel = stringResource(R.string.test_connection)
     val testDesc = stringResource(R.string.content_desc_test_connection)
+    val logoutDesc = stringResource(R.string.content_desc_logout)
 
     Scaffold(
         modifier = modifier,
@@ -160,6 +164,24 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyLarge,
                 color = statusColor,
             )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = stringResource(R.string.settings_section_account),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+
+            Button(
+                onClick = onLogout,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = logoutDesc },
+            ) {
+                Text(stringResource(R.string.logout))
+            }
         }
     }
 }

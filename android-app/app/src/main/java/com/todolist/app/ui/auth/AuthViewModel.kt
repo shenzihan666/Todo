@@ -1,0 +1,75 @@
+package com.todolist.app.ui.auth
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.todolist.app.data.repository.AuthRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+enum class AuthMode {
+    Login,
+    Register,
+}
+
+data class AuthUiState(
+    val username: String = "",
+    val password: String = "",
+    val mode: AuthMode = AuthMode.Login,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+)
+
+class AuthViewModel(
+    private val authRepository: AuthRepository,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(AuthUiState())
+    val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+
+    fun onUsernameChange(value: String) {
+        _uiState.value = _uiState.value.copy(username = value, errorMessage = null)
+    }
+
+    fun onPasswordChange(value: String) {
+        _uiState.value = _uiState.value.copy(password = value, errorMessage = null)
+    }
+
+    fun setMode(mode: AuthMode) {
+        _uiState.value = _uiState.value.copy(mode = mode, errorMessage = null)
+    }
+
+    fun submit(onSuccess: () -> Unit) {
+        val state = _uiState.value
+        val user = state.username.trim()
+        val pass = state.password
+        if (user.isEmpty()) {
+            _uiState.value = state.copy(errorMessage = "Enter a username")
+            return
+        }
+        if (pass.length < 6) {
+            _uiState.value = state.copy(errorMessage = "Password must be at least 6 characters")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = state.copy(isLoading = true, errorMessage = null)
+            val result = when (state.mode) {
+                AuthMode.Login -> authRepository.login(user, pass)
+                AuthMode.Register -> authRepository.register(user, pass)
+            }
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                    onSuccess()
+                },
+                onFailure = { e ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = e.message ?: "Something went wrong",
+                    )
+                },
+            )
+        }
+    }
+}

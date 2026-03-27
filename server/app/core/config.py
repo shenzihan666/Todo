@@ -17,6 +17,11 @@ class Settings(BaseSettings):
 
     database_url: str = ""
 
+    jwt_secret_key: str = "CHANGE-ME-in-production"  # noqa: S105
+    jwt_algorithm: str = "HS256"
+    jwt_access_expire_minutes: int = 30
+    jwt_refresh_expire_days: int = 30
+
     cors_origins: list[str] = ["*"]
 
     host: str = "0.0.0.0"  # noqa: S104

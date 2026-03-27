@@ -1,4 +1,4 @@
-package com.todolist.app.ui.health
+package com.todolist.app.ui.home
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -52,16 +52,33 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.todolist.app.R
 import com.todolist.app.TodoListApplication
 import com.todolist.app.ui.components.TodoListAppBar
+import kotlinx.coroutines.flow.first
 
 @Composable
-fun HealthRoute(
+fun HomeRoute(
     onNavigateToSettings: () -> Unit,
+    onNavigateToAuth: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as TodoListApplication
+    val prefs = app.container.userPreferencesRepository
+    val isLoggedIn by prefs.isLoggedIn.collectAsStateWithLifecycle(initialValue = false)
+
+    LaunchedEffect(Unit) {
+        if (!prefs.isLoggedIn.first()) {
+            onNavigateToAuth()
+        }
+    }
+
+    LaunchedEffect(isLoggedIn) {
+        if (!isLoggedIn) {
+            onNavigateToAuth()
+        }
+    }
+
     val speechViewModel: SpeechViewModel = viewModel(factory = app.speechViewModelFactory())
-    HealthScreen(
+    HomeScreen(
         modifier = modifier,
         onNavigateToSettings = onNavigateToSettings,
         speechViewModel = speechViewModel,
@@ -70,7 +87,7 @@ fun HealthRoute(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HealthScreen(
+fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     speechViewModel: SpeechViewModel,
     modifier: Modifier = Modifier,

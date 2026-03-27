@@ -3,6 +3,7 @@ package com.todolist.app.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todolist.app.data.preferences.UserPreferencesRepository
+import com.todolist.app.data.repository.AuthRepository
 import com.todolist.app.domain.model.HealthCheckResult
 import com.todolist.app.domain.repository.HealthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,7 @@ sealed interface ConnectionUiState {
 class SettingsViewModel(
     private val healthRepository: HealthRepository,
     private val userPreferences: UserPreferencesRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _draftServerIp = MutableStateFlow("")
@@ -78,6 +80,13 @@ class SettingsViewModel(
                 is HealthCheckResult.Connected -> ConnectionUiState.Connected
                 is HealthCheckResult.Failed -> ConnectionUiState.Failed(result.reason)
             }
+        }
+    }
+
+    fun logout(onDone: () -> Unit) {
+        viewModelScope.launch {
+            authRepository.logout()
+            onDone()
         }
     }
 }

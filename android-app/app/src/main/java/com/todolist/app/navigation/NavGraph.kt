@@ -11,7 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.todolist.app.ui.health.HealthRoute
+import com.todolist.app.ui.auth.AuthRoute
+import com.todolist.app.ui.home.HomeRoute
 import com.todolist.app.ui.settings.SettingsRoute
 
 private const val SETTINGS_MOTION_MS = 340
@@ -26,11 +27,21 @@ fun TodoListNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Health.route,
+        startDestination = Screen.Auth.route,
         modifier = modifier,
     ) {
+        composable(route = Screen.Auth.route) {
+            AuthRoute(
+                onAuthSuccess = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    }
+                },
+                onOpenSettings = { navController.navigate(Screen.Settings.route) },
+            )
+        }
         composable(
-            route = Screen.Health.route,
+            route = Screen.Home.route,
             exitTransition = {
                 slideOutHorizontally(
                     targetOffsetX = { fullWidth -> -(fullWidth / 5) },
@@ -42,8 +53,13 @@ fun TodoListNavHost(
                 ) + fadeIn(animationSpec = settingsTween)
             },
         ) {
-            HealthRoute(
+            HomeRoute(
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToAuth = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
             )
         }
         composable(
@@ -69,7 +85,14 @@ fun TodoListNavHost(
                 ) + fadeOut(animationSpec = settingsTween)
             },
         ) {
-            SettingsRoute(onNavigateBack = { navController.popBackStack() })
+            SettingsRoute(
+                onNavigateBack = { navController.popBackStack() },
+                onLoggedOut = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
+            )
         }
     }
 }

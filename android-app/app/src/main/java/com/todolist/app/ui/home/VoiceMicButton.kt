@@ -1,5 +1,6 @@
-package com.todolist.app.ui.health
+package com.todolist.app.ui.home
 
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -47,7 +48,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import android.view.HapticFeedbackConstants
 import com.todolist.app.R
 import kotlinx.coroutines.delay
 
@@ -116,12 +116,12 @@ fun VoiceMicButton(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
+        modifier = modifier,
     ) {
         val textAlpha by animateFloatAsState(
             targetValue = if (isHolding) 1f else 0f,
             animationSpec = tween(150),
-            label = "text_alpha"
+            label = "text_alpha",
         )
 
         Text(
@@ -130,7 +130,7 @@ fun VoiceMicButton(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .padding(bottom = 16.dp)
-                .alpha(textAlpha)
+                .alpha(textAlpha),
         )
 
         Box(

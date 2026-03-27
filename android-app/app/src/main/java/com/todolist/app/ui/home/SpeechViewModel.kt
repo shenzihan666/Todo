@@ -1,4 +1,4 @@
-package com.todolist.app.ui.health
+package com.todolist.app.ui.home
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -8,6 +8,7 @@ import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.domain.speech.SpeechTranscriber
 import com.todolist.app.domain.speech.TranscriberState
 import com.todolist.app.ui.settings.buildSpeechWebSocketUrl
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,15 +17,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.channels.Channel
-
 import java.util.UUID
 
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val text: String,
     val isUser: Boolean,
-    val isPending: Boolean = false
+    val isPending: Boolean = false,
 )
 
 class SpeechViewModel(
@@ -65,13 +64,13 @@ class SpeechViewModel(
                         _messages.value = _messages.value + ChatMessage(
                             text = finalTranscript,
                             isUser = true,
-                            isPending = false
+                            isPending = false,
                         )
                         // Mock AI reply
                         _messages.value = _messages.value + ChatMessage(
                             text = "收到你的语音：$finalTranscript",
                             isUser = false,
-                            isPending = false
+                            isPending = false,
                         )
                     }
                 }

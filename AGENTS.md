@@ -98,8 +98,8 @@ See `db/init/001_schema.sql` and Alembic migrations:
 - DI: manual `AppContainer` (swap for Hilt/KSP when plugin resolves)
 - Flavors: `dev` (HTTP, local API) / `prod` (HTTPS, production API); `BuildConfig.API_BASE_URL` / `HEALTH_URL`
 - Config: `local.properties` for `sdk.dir`, optional `local.server.host` (default in Gradle: `192.168.1.1`) and `local.server.port` (default `8000`)
-- Speech: `domain/speech/SpeechTranscriber` + `data/speech/` (OkHttp WebSocket); hold-to-talk uses `AudioRecorder` (16 kHz PCM) → full URL `ws://<host>:<port>/api/v1/speech/ws` (see `buildSpeechWebSocketUrl` in `ui/settings/SettingsViewModel.kt`)
-- Multi-tenant API: create a tenant via `POST /api/v1/tenants`, then send **`X-Tenant-ID`** on todo HTTP calls (Retrofit `@Header("X-Tenant-ID")` or OkHttp interceptor); align with backend `AGENTS.md` Multi-Tenancy section
+- Home / speech UI: `ui/home/` — hold-to-talk mic and chat transcript; `domain/speech/SpeechTranscriber` + `data/speech/` (OkHttp WebSocket); `AudioRecorder` (16 kHz PCM) → `ws://<host>:<port>/api/v1/speech/ws` (see `buildSpeechWebSocketUrl` in `ui/settings/SettingsViewModel.kt`)
+- Multi-tenant API: register/login returns JWT with `tenant_id`; send **`Authorization: Bearer`** on tenant-scoped HTTP calls (see `AuthInterceptor` in `di/AppContainer.kt`).
 
 ## File Editing Checklist
 

@@ -91,7 +91,7 @@ Requirements: Android Studio / JDK 17+, Android SDK.
 - **Data:** `HealthRepositoryImpl` and API DTOs (`data/`).
 - **DI:** [`AppContainer`](android-app/app/src/main/java/com/todolist/app/di/AppContainer.kt) holds singletons; `TodoListApplication` exposes a `ViewModelProvider.Factory` for `HealthViewModel`. You can replace this with **Hilt + KSP** when your Gradle environment resolves the KSP plugin for your Kotlin/AGP versions.
 
-- **UI:** `ui/health/`, `ui/theme/`, `navigation/` (Navigation Compose).
+- **UI:** `ui/home/` (main voice/chat), `ui/auth/`, `ui/settings/`, `ui/theme/`, `navigation/` (Navigation Compose).
 
 ## Git hooks
 

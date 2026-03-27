@@ -3,11 +3,17 @@ package com.todolist.app.di
 import android.content.Context
 import com.todolist.app.BuildConfig
 import com.todolist.app.data.network.ApiService
+import com.todolist.app.data.network.AuthInterceptor
+import com.todolist.app.data.network.TokenAuthenticator
 import com.todolist.app.data.preferences.UserPreferencesRepository
+import com.todolist.app.data.repository.AuthRepository
 import com.todolist.app.data.repository.HealthRepositoryImpl
 import com.todolist.app.data.speech.RemoteSpeechTranscriber
 import com.todolist.app.domain.repository.HealthRepository
 import com.todolist.app.domain.speech.SpeechTranscriber
+import com.todolist.app.ui.settings.buildServerBaseUrl
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -37,34 +43,69 @@ class AppContainer(
         encodeDefaults = true
     }
 
-    fun createSpeechTranscriber(): SpeechTranscriber =
-        RemoteSpeechTranscriber(
-            RemoteSpeechTranscriber.defaultWsClient(okHttpClient),
-            speechJson,
-        )
-
-    private val okHttpClient: OkHttpClient by lazy {
-        val logging = HttpLoggingInterceptor().apply {
+    private val loggingInterceptor: HttpLoggingInterceptor by lazy {
+        HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.BODY
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }
         }
+    }
+
+    /** Logging only — speech WebSocket and token refresh (no auth loop). */
+    private val plainOkHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(5, TimeUnit.SECONDS)
             .callTimeout(8, TimeUnit.SECONDS)
-            .addInterceptor(logging)
+            .addInterceptor(loggingInterceptor)
             .build()
     }
+
+    private val authenticatedOkHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .callTimeout(8, TimeUnit.SECONDS)
+            .addInterceptor(loggingInterceptor)
+            .addInterceptor(AuthInterceptor(userPreferencesRepository))
+            .authenticator(
+                TokenAuthenticator(
+                    getBaseUrl = {
+                        runBlocking {
+                            val ip = userPreferencesRepository.serverIp.first().trim()
+                            if (ip.isEmpty()) {
+                                ""
+                            } else {
+                                buildServerBaseUrl(ip)
+                            }
+                        }
+                    },
+                    getRefreshToken = { userPreferencesRepository.getRefreshTokenBlocking() },
+                    onTokenRefreshed = { access, refresh ->
+                        userPreferencesRepository.updateTokens(access, refresh)
+                    },
+                    onRefreshFailed = { userPreferencesRepository.clearAuth() },
+                    json = json,
+                    plainClient = plainOkHttpClient,
+                ),
+            )
+            .build()
+    }
+
+    fun createSpeechTranscriber(): SpeechTranscriber =
+        RemoteSpeechTranscriber(
+            RemoteSpeechTranscriber.defaultWsClient(plainOkHttpClient),
+            speechJson,
+        )
 
     fun createApiService(baseUrl: String): ApiService {
         val base = baseUrl.trim().trimEnd('/') + "/"
         val mediaType = "application/json".toMediaType()
         return Retrofit.Builder()
             .baseUrl(base)
-            .client(okHttpClient)
+            .client(authenticatedOkHttpClient)
             .addConverterFactory(json.asConverterFactory(mediaType))
             .build()
             .create(ApiService::class.java)
@@ -72,5 +113,9 @@ class AppContainer(
 
     val healthRepository: HealthRepository by lazy {
         HealthRepositoryImpl(::createApiService)
+    }
+
+    val authRepository: AuthRepository by lazy {
+        AuthRepository(userPreferencesRepository, ::createApiService)
     }
 }
