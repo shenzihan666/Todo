@@ -8,6 +8,7 @@ from app.schemas.speech import (
     SpeechStopMessage,
     StreamConfig,
 )
+from app.schemas.tenant import TenantCreate, TenantRead
 from app.schemas.todo import TodoCreate, TodoRead, TodoUpdate
 
 __all__ = [
@@ -20,6 +21,8 @@ __all__ = [
     "SpeechStartMessage",
     "SpeechStopMessage",
     "StreamConfig",
+    "TenantCreate",
+    "TenantRead",
     "TodoCreate",
     "TodoRead",
     "TodoUpdate",

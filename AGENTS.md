@@ -39,11 +39,11 @@ app/api/v1/endpoints/ → schemas/ → services/ → repositories/ → models/
 
 (Paths are under `server/app/`.)
 
-- **Endpoints**: route handlers, depend on schemas for I/O — **health** (`GET /api/v1/health`), **todos** CRUD, **speech** WebSocket
+- **Endpoints**: route handlers, depend on schemas for I/O — **health** (`GET /api/v1/health`), **tenants** (create), **todos** CRUD (tenant-scoped), **speech** WebSocket
 - **Schemas**: Pydantic models (request/response)
 - **Services**: business logic
 - **Repositories**: DB access (async SQLAlchemy)
-- **Models**: ORM models (`models/todo.py`, `models/base.py`)
+- **Models**: ORM models (`models/todo.py`, `models/tenant.py`, `models/base.py`)
 - **Core**: config, database session, logging, exceptions (`core/`)
 - **Speech (STT)**: WebSocket `WS /api/v1/speech/ws` streams PCM (`pcm_s16le`, 16 kHz mono); Faster-Whisper engine in `services/transcription/` (swap implementations without changing the wire protocol)
 
@@ -75,12 +75,22 @@ cd server && uv run ruff check . && uv run ruff format --check .
 - **Environment**: copy `server/.env.example` → `.env`, never commit `.env`
 - **Line endings**: LF everywhere except `.bat/.cmd/.ps1` (CRLF)
 
+## Multi-Tenancy (backend standard)
+
+- **Strategy**: shared PostgreSQL database and schema; **row-level isolation** with a `tenant_id UUID NOT NULL` column on every **business** table, referencing `tenants(id)`.
+- **`tenants`**: registry of tenants (primary key `id` UUID). Create tenants via `POST /api/v1/tenants` before scoped operations.
+- **System tables** (e.g. `app_metadata`) are **exempt** — they are global, not per-tenant.
+- **API tenant context**: callers send **`X-Tenant-ID: <uuid>`** on requests that operate on tenant data (e.g. todos). Future auth (JWT) should supply `tenant_id` from token claims instead of/in addition to this header.
+- **Repositories**: must accept `tenant_id` and **always** filter writes/reads by it; never return or mutate rows for another tenant.
+- **New tables**: add `tenant_id` + FK to `tenants`, composite/secondary indexes as needed for `(tenant_id, ...)`.
+
 ## Database Schema
 
-Two tables (see `db/init/001_schema.sql`):
+See `db/init/001_schema.sql` and Alembic migrations:
 
-- `app_metadata` — key-value store (tracks `schema_version`)
-- `todos` — id, title, description, completed, created_at, updated_at
+- `app_metadata` — key-value store (tracks `schema_version`; not tenant-scoped)
+- `tenants` — id (UUID), name, timestamps
+- `todos` — id, **tenant_id** (FK → `tenants`), title, description, completed, created_at, updated_at
 
 ## Android Quick Ref
 
@@ -89,6 +99,7 @@ Two tables (see `db/init/001_schema.sql`):
 - Flavors: `dev` (HTTP, local API) / `prod` (HTTPS, production API); `BuildConfig.API_BASE_URL` / `HEALTH_URL`
 - Config: `local.properties` for `sdk.dir`, optional `local.server.host` (default in Gradle: `192.168.1.1`) and `local.server.port` (default `8000`)
 - Speech: `domain/speech/SpeechTranscriber` + `data/speech/` (OkHttp WebSocket); hold-to-talk uses `AudioRecorder` (16 kHz PCM) → full URL `ws://<host>:<port>/api/v1/speech/ws` (see `buildSpeechWebSocketUrl` in `ui/settings/SettingsViewModel.kt`)
+- Multi-tenant API: create a tenant via `POST /api/v1/tenants`, then send **`X-Tenant-ID`** on todo HTTP calls (Retrofit `@Header("X-Tenant-ID")` or OkHttp interceptor); align with backend `AGENTS.md` Multi-Tenancy section
 
 ## File Editing Checklist
 

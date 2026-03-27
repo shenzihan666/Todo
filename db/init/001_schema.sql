@@ -12,11 +12,25 @@ INSERT INTO app_metadata (key, value)
 VALUES ('schema_version', '1')
 ON CONFLICT (key) DO NOTHING;
 
+CREATE TABLE IF NOT EXISTS tenants (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO tenants (id, name)
+VALUES ('00000000-0000-0000-0000-000000000001'::uuid, 'Bootstrap default tenant')
+ON CONFLICT (id) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS todos (
     id SERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     title VARCHAR(512) NOT NULL,
     description TEXT,
     completed BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS ix_todos_tenant_id ON todos (tenant_id);

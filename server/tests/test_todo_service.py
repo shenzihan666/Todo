@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
@@ -8,17 +9,20 @@ from app.schemas.todo import TodoCreate, TodoUpdate
 from app.services.todo_service import TodoService
 
 NOW = datetime(2025, 1, 1, tzinfo=UTC)
+TEST_TENANT_ID = uuid.UUID("22222222-2222-2222-2222-222222222222")
 
 
 def _make_todo(**overrides):
     defaults = {
         "id": 1,
+        "tenant_id": TEST_TENANT_ID,
         "title": "Test",
         "description": None,
         "completed": False,
     }
     defaults.update(overrides)
     todo = Todo(
+        tenant_id=defaults["tenant_id"],
         title=defaults["title"],
         description=defaults["description"],
         completed=defaults["completed"],

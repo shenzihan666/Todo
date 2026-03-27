@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,6 +19,7 @@ class TodoRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    tenant_id: uuid.UUID
     title: str
     description: str | None
     completed: bool

@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime
 
 import pytest
@@ -11,10 +12,22 @@ from app.models.todo import Todo
 from app.schemas.todo import TodoCreate, TodoUpdate
 
 NOW = datetime(2025, 1, 1, tzinfo=UTC)
+TEST_TENANT_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
 
 
-def _make_todo(id_=1, title="Buy groceries", description=None, completed=False):
-    todo = Todo(title=title, description=description, completed=completed)
+def _make_todo(
+    id_=1,
+    title="Buy groceries",
+    description=None,
+    completed=False,
+    tenant_id=TEST_TENANT_ID,
+):
+    todo = Todo(
+        tenant_id=tenant_id,
+        title=title,
+        description=description,
+        completed=completed,
+    )
     todo.id = id_
     todo.created_at = NOW
     todo.updated_at = NOW
@@ -71,49 +84,80 @@ async def todo_client(fake_service):
     app.dependency_overrides.clear()
 
 
+def _tenant_headers():
+    return {"X-Tenant-ID": str(TEST_TENANT_ID)}
+
+
+@pytest.mark.asyncio
+async def test_todos_require_x_tenant_id() -> None:
+    """Without dependency overrides, todo routes require X-Tenant-ID."""
+    app = create_app()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get("/api/v1/todos")
+    assert r.status_code == 422
+
+
 @pytest.mark.asyncio
 async def test_list_empty(todo_client: AsyncClient) -> None:
-    r = await todo_client.get("/api/v1/todos")
+    r = await todo_client.get("/api/v1/todos", headers=_tenant_headers())
     assert r.status_code == 200
     assert r.json() == []
 
 
 @pytest.mark.asyncio
 async def test_create_and_list(todo_client: AsyncClient) -> None:
-    r = await todo_client.post("/api/v1/todos", json={"title": "Buy milk"})
+    r = await todo_client.post(
+        "/api/v1/todos",
+        json={"title": "Buy milk"},
+        headers=_tenant_headers(),
+    )
     assert r.status_code == 201
     body = r.json()
     assert body["title"] == "Buy milk"
     assert body["completed"] is False
+    assert body["tenant_id"] == str(TEST_TENANT_ID)
     assert "id" in body
 
-    r = await todo_client.get("/api/v1/todos")
+    r = await todo_client.get("/api/v1/todos", headers=_tenant_headers())
     assert r.status_code == 200
     assert len(r.json()) == 1
 
 
 @pytest.mark.asyncio
 async def test_get_by_id(todo_client: AsyncClient) -> None:
-    cr = await todo_client.post("/api/v1/todos", json={"title": "Walk the dog"})
+    cr = await todo_client.post(
+        "/api/v1/todos",
+        json={"title": "Walk the dog"},
+        headers=_tenant_headers(),
+    )
     todo_id = cr.json()["id"]
 
-    r = await todo_client.get(f"/api/v1/todos/{todo_id}")
+    r = await todo_client.get(f"/api/v1/todos/{todo_id}", headers=_tenant_headers())
     assert r.status_code == 200
     assert r.json()["title"] == "Walk the dog"
 
 
 @pytest.mark.asyncio
 async def test_get_not_found(todo_client: AsyncClient) -> None:
-    r = await todo_client.get("/api/v1/todos/999")
+    r = await todo_client.get("/api/v1/todos/999", headers=_tenant_headers())
     assert r.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_update(todo_client: AsyncClient) -> None:
-    cr = await todo_client.post("/api/v1/todos", json={"title": "Clean house"})
+    cr = await todo_client.post(
+        "/api/v1/todos",
+        json={"title": "Clean house"},
+        headers=_tenant_headers(),
+    )
     todo_id = cr.json()["id"]
 
-    r = await todo_client.patch(f"/api/v1/todos/{todo_id}", json={"completed": True})
+    r = await todo_client.patch(
+        f"/api/v1/todos/{todo_id}",
+        json={"completed": True},
+        headers=_tenant_headers(),
+    )
     assert r.status_code == 200
     assert r.json()["completed"] is True
     assert r.json()["title"] == "Clean house"
@@ -121,19 +165,27 @@ async def test_update(todo_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_delete(todo_client: AsyncClient) -> None:
-    cr = await todo_client.post("/api/v1/todos", json={"title": "Temp"})
+    cr = await todo_client.post(
+        "/api/v1/todos",
+        json={"title": "Temp"},
+        headers=_tenant_headers(),
+    )
     todo_id = cr.json()["id"]
 
-    r = await todo_client.delete(f"/api/v1/todos/{todo_id}")
+    r = await todo_client.delete(f"/api/v1/todos/{todo_id}", headers=_tenant_headers())
     assert r.status_code == 204
 
-    r = await todo_client.get(f"/api/v1/todos/{todo_id}")
+    r = await todo_client.get(f"/api/v1/todos/{todo_id}", headers=_tenant_headers())
     assert r.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_create_validation_empty_title(todo_client: AsyncClient) -> None:
-    r = await todo_client.post("/api/v1/todos", json={"title": ""})
+    r = await todo_client.post(
+        "/api/v1/todos",
+        json={"title": ""},
+        headers=_tenant_headers(),
+    )
     assert r.status_code == 422
 
 
@@ -142,6 +194,7 @@ async def test_create_with_description(todo_client: AsyncClient) -> None:
     r = await todo_client.post(
         "/api/v1/todos",
         json={"title": "Read book", "description": "Chapter 5"},
+        headers=_tenant_headers(),
     )
     assert r.status_code == 201
     body = r.json()
@@ -150,11 +203,15 @@ async def test_create_with_description(todo_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_update_not_found(todo_client: AsyncClient) -> None:
-    r = await todo_client.patch("/api/v1/todos/999", json={"title": "Nope"})
+    r = await todo_client.patch(
+        "/api/v1/todos/999",
+        json={"title": "Nope"},
+        headers=_tenant_headers(),
+    )
     assert r.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_delete_not_found(todo_client: AsyncClient) -> None:
-    r = await todo_client.delete("/api/v1/todos/999")
+    r = await todo_client.delete("/api/v1/todos/999", headers=_tenant_headers())
     assert r.status_code == 404

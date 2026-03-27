@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.models import AppMetadata, Todo  # noqa: F401 — register ORM tables
+from app.models import AppMetadata, Tenant, Todo  # noqa: F401 — register ORM tables
 from app.models.base import Base
 
 engine = create_async_engine(

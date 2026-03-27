@@ -44,6 +44,7 @@ Requirements: Python 3.12+, PostgreSQL, and [uv](https://docs.astral.sh/uv/) for
 
 - OpenAPI: `http://127.0.0.1:8000/docs`
 - Health: `GET /api/v1/health` (expects `app_metadata.schema_version` after migrations or init script)
+- Multi-tenant: create a tenant with `POST /api/v1/tenants`, then send `X-Tenant-ID: <uuid>` on todo requests (see `AGENTS.md`)
 
 ## Backend (Docker)
 
