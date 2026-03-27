@@ -52,7 +52,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.todolist.app.R
 import com.todolist.app.TodoListApplication
 import com.todolist.app.ui.components.TodoListAppBar
-import kotlinx.coroutines.flow.first
 
 @Composable
 fun HomeRoute(
@@ -63,17 +62,12 @@ fun HomeRoute(
     val context = LocalContext.current
     val app = context.applicationContext as TodoListApplication
     val prefs = app.container.userPreferencesRepository
-    val isLoggedIn by prefs.isLoggedIn.collectAsStateWithLifecycle(initialValue = false)
 
-    LaunchedEffect(Unit) {
-        if (!prefs.isLoggedIn.first()) {
-            onNavigateToAuth()
-        }
-    }
-
-    LaunchedEffect(isLoggedIn) {
-        if (!isLoggedIn) {
-            onNavigateToAuth()
+    LaunchedEffect(prefs) {
+        prefs.isLoggedIn.collect { loggedIn ->
+            if (!loggedIn) {
+                onNavigateToAuth()
+            }
         }
     }
 
