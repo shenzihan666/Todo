@@ -18,14 +18,19 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,6 +49,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import android.view.HapticFeedbackConstants
 import com.todolist.app.R
+import kotlinx.coroutines.delay
 
 @Composable
 fun VoiceMicButton(
@@ -61,6 +67,21 @@ fun VoiceMicButton(
     /** True while finger is down — drives animation immediately (SpeechRecognizer lags). */
     var isHolding by remember { mutableStateOf(false) }
     val active = isHolding || isListening
+
+    var recordingTime by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(isHolding) {
+        if (isHolding) {
+            recordingTime = 0f
+            val startTime = System.currentTimeMillis()
+            while (true) {
+                delay(10)
+                recordingTime = (System.currentTimeMillis() - startTime) / 1000f
+            }
+        } else {
+            recordingTime = 0f
+        }
+    }
 
     val pulseFast = rememberInfiniteTransition(label = "mic_ring_fast")
     val ringPulse1 by pulseFast.animateFloat(
@@ -93,94 +114,127 @@ fun VoiceMicButton(
     val levelBoost = 1f + audioLevel * 0.18f
     val micCombinedScale = micScale * if (active) levelBoost else 1f
 
-    Box(
-        modifier =
-            modifier
-                .size(168.dp)
-                .semantics {
-                    role = Role.Button
-                    contentDescription = holdDesc
-                }
-                .pointerInput(hasPermission) {
-                    awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false)
-                        if (!hasPermission) {
-                            onRequestPermission()
-                            return@awaitEachGesture
-                        }
-                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                        isHolding = true
-                        onHoldStart()
-                        try {
-                            waitForUpOrCancellation()
-                        } finally {
-                            isHolding = false
-                            onHoldEnd()
-                        }
-                    }
-                },
-        contentAlignment = Alignment.Center,
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
     ) {
-        AnimatedVisibility(
-            visible = active,
-            enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.85f, animationSpec = tween(180)),
-            exit = fadeOut(tween(160)) + scaleOut(targetScale = 0.9f, animationSpec = tween(160)),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(148.dp)
-                            .scale(ringPulse2)
-                            .alpha(0.28f)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
-                                shape = CircleShape,
-                            ),
-                )
-                Box(
-                    modifier =
-                        Modifier
-                            .size(120.dp)
-                            .scale(ringPulse1)
-                            .alpha(0.42f)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
-                                shape = CircleShape,
-                            ),
-                )
-            }
-        }
+        val textAlpha by animateFloatAsState(
+            targetValue = if (isHolding) 1f else 0f,
+            animationSpec = tween(150),
+            label = "text_alpha"
+        )
+
+        Text(
+            text = String.format(java.util.Locale.US, "%.2f s", recordingTime),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(bottom = 16.dp)
+                .alpha(textAlpha)
+        )
 
         Box(
             modifier =
                 Modifier
-                    .size(72.dp)
-                    .graphicsLayer {
-                        scaleX = micCombinedScale
-                        scaleY = micCombinedScale
+                    .size(168.dp)
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = holdDesc
                     }
-                    .background(
-                        color =
-                            if (active) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer
-                            },
-                        shape = CircleShape,
-                    ),
+                    .pointerInput(hasPermission) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            if (!hasPermission) {
+                                onRequestPermission()
+                                return@awaitEachGesture
+                            }
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            isHolding = true
+                            onHoldStart()
+                            try {
+                                waitForUpOrCancellation()
+                            } finally {
+                                isHolding = false
+                                onHoldEnd()
+                            }
+                        }
+                    },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = Icons.Filled.Mic,
-                contentDescription = null,
-                tint =
-                    if (active) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    },
-                modifier = Modifier.size(36.dp),
+            ListeningPulseRings(
+                active = active,
+                ringPulse1 = ringPulse1,
+                ringPulse2 = ringPulse2,
+            )
+
+            Box(
+                modifier =
+                    Modifier
+                        .size(72.dp)
+                        .graphicsLayer {
+                            scaleX = micCombinedScale
+                            scaleY = micCombinedScale
+                        }
+                        .background(
+                            color =
+                                if (active) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                },
+                            shape = CircleShape,
+                        ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Mic,
+                    contentDescription = null,
+                    tint =
+                        if (active) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        },
+                    modifier = Modifier.size(36.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListeningPulseRings(
+    active: Boolean,
+    ringPulse1: Float,
+    ringPulse2: Float,
+) {
+    AnimatedVisibility(
+        visible = active,
+        enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.85f, animationSpec = tween(180)),
+        exit = fadeOut(tween(160)) + scaleOut(targetScale = 0.9f, animationSpec = tween(160)),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(148.dp)
+                        .scale(ringPulse2)
+                        .alpha(0.28f)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+                            shape = CircleShape,
+                        ),
+            )
+            Box(
+                modifier =
+                    Modifier
+                        .size(120.dp)
+                        .scale(ringPulse1)
+                        .alpha(0.42f)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
+                            shape = CircleShape,
+                        ),
             )
         }
     }

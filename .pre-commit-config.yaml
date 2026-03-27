@@ -75,7 +75,7 @@ repos:
     hooks:
       - id: pytest-check
         name: pytest (server)
-        entry: bash -c "cd server && python -m pytest --tb=short -q"
+        entry: bash -c "cd server && uv run pytest --tb=short -q"
         language: system
         pass_filenames: false
         stages: [pre-push]

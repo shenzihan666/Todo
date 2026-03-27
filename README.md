@@ -13,7 +13,7 @@ Monorepo: **FastAPI** backend (PostgreSQL, Alembic), **Android** client (Jetpack
 
 ## Backend (local)
 
-Requirements: Python 3.12+, PostgreSQL.
+Requirements: Python 3.12+, PostgreSQL, and [uv](https://docs.astral.sh/uv/) for installing and running the server (see below).
 
 1. Create a database and configure env (from repo root or `server/`):
 
@@ -23,23 +23,23 @@ Requirements: Python 3.12+, PostgreSQL.
    # edit .env — set POSTGRES_PASSWORD and any overrides
    ```
 
-2. Install and run migrations:
+2. Sync dependencies and run migrations:
 
    ```bash
-   pip install -e ".[dev]"
-   alembic upgrade head
+   uv sync --extra dev
+   uv run alembic upgrade head
    ```
 
    Alternatively, bootstrap with SQL only (creates DB if missing):
 
    ```bash
-   python scripts/init_local_db.py
+   uv run python scripts/init_local_db.py
    ```
 
 3. Run the API:
 
    ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 - OpenAPI: `http://127.0.0.1:8000/docs`
@@ -53,7 +53,7 @@ From the **repository root**:
 docker compose up --build
 ```
 
-If `pip install` fails during the image build (e.g. PyPI timeouts), retry the build or use a faster network mirror; the [`server/Dockerfile`](server/Dockerfile) sets a longer `PIP_DEFAULT_TIMEOUT` to reduce transient failures.
+If `uv sync` fails during the image build (e.g. PyPI timeouts), retry the build or use a faster network mirror; the [`server/Dockerfile`](server/Dockerfile) installs dependencies with **uv** from [`server/uv.lock`](server/uv.lock) for reproducible builds.
 
 - API: `http://127.0.0.1:8000`
 - Postgres: `localhost:5432` (user/password/db: `postgres` / `postgres` / `todolist` as in Compose)
@@ -64,8 +64,8 @@ The API image runs `alembic upgrade head` before starting Uvicorn.
 
 ```bash
 cd server
-pip install -e ".[dev]"
-pytest
+uv sync --extra dev
+uv run pytest
 ```
 
 ## Android app
@@ -99,7 +99,7 @@ This repo uses [pre-commit](https://pre-commit.com/) to run automated checks on 
 ### Quick setup
 
 ```bash
-pip install pre-commit          # if not already installed
+uv tool install pre-commit
 pre-commit install --install-hooks -t pre-commit -t commit-msg -t pre-push
 ```
 
@@ -148,9 +148,9 @@ The server uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting.
 
 ```bash
 cd server
-ruff check .          # lint
-ruff check --fix .    # lint + auto-fix
-ruff format .         # format
+uv run ruff check .          # lint
+uv run ruff check --fix .    # lint + auto-fix
+uv run ruff format .         # format
 ```
 
 ## API versioning

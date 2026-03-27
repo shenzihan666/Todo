@@ -4,14 +4,16 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PIP_DEFAULT_TIMEOUT=120
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml .
+COPY pyproject.toml uv.lock ./
 COPY app ./app
 COPY alembic.ini .
 COPY alembic ./alembic
@@ -19,8 +21,9 @@ COPY scripts ./scripts
 COPY docker-entrypoint.sh .
 
 RUN chmod +x docker-entrypoint.sh \
-    && pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir .
+    && uv sync --frozen --no-dev
+
+ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
 

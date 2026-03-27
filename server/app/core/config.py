@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     port: int = 8000
 
     # Faster-Whisper (speech-to-text)
-    whisper_model_size: str = "large-v3"
+    whisper_model_size: str = "medium"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
     whisper_vad_filter: bool = True
