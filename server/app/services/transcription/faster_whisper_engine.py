@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
+import structlog
 
 from app.core.config import settings
 from app.schemas.speech import StreamConfig
@@ -16,7 +16,7 @@ from app.services.transcription.base import Segment, TranscriptionResult
 if TYPE_CHECKING:
     from faster_whisper import WhisperModel
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class FasterWhisperEngine:
@@ -31,10 +31,10 @@ class FasterWhisperEngine:
         from faster_whisper import WhisperModel
 
         logger.info(
-            "Loading Faster-Whisper model=%s device=%s compute_type=%s",
-            settings.whisper_model_size,
-            settings.whisper_device,
-            settings.whisper_compute_type,
+            "whisper_model_loading",
+            model=settings.whisper_model_size,
+            device=settings.whisper_device,
+            compute_type=settings.whisper_compute_type,
         )
         self._model = WhisperModel(
             settings.whisper_model_size,

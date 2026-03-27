@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"  # noqa: S104
     port: int = 8000
 
+    # Logging & observability (structlog + optional Sentry)
+    log_level: str = "INFO"
+    log_format: str = "json"  # "json" | "console"
+    sentry_dsn: str | None = None
+    sentry_environment: str = "development"
+    sentry_traces_sample_rate: float = 0.0
+
     # Faster-Whisper (speech-to-text)
     whisper_model_size: str = "medium"
     whisper_device: str = "cpu"
@@ -35,6 +42,12 @@ class Settings(BaseSettings):
     whisper_beam_size: int = 5
     speech_partial_interval_ms: int = 1500
     speech_min_partial_bytes: int = 9600
+    # Rolling window (seconds) of PCM kept for partial transcription; full buffer kept for final.
+    speech_partial_window_seconds: int = 30
+    # Require `access_token` query param (JWT) on speech WebSocket.
+    speech_require_auth: bool = True
+    # If set, POST /tenants requires header X-Tenant-Bootstrap-Key to match. Empty = disabled.
+    tenant_bootstrap_api_key: str = ""
 
     @model_validator(mode="after")
     def _assemble_database_url(self) -> "Settings":

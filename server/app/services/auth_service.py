@@ -1,8 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, status
+import structlog
 
 from app.core.config import settings
+from app.core.exceptions import AuthenticationError, ConflictError
 from app.core.security import (
     create_access_token,
     generate_refresh_token,
@@ -15,6 +16,8 @@ from app.repositories.tenant_repository import TenantRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.tenant import TenantCreate
+
+logger = structlog.get_logger(__name__)
 
 
 class AuthService:
@@ -31,10 +34,7 @@ class AuthService:
     async def register(self, data: RegisterRequest) -> TokenResponse:
         existing = await self._user_repo.get_by_username(data.username)
         if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Username already taken",
-            )
+            raise ConflictError("Username already taken")
 
         tenant = await self._tenant_repo.create(TenantCreate(name=data.username))
         user = await self._user_repo.create(
@@ -43,37 +43,40 @@ class AuthService:
             tenant_id=tenant.id,
         )
 
+        logger.info(
+            "user_registered",
+            user_id=str(user.id),
+            tenant_id=str(tenant.id),
+        )
         return await self._issue_tokens(user.id, tenant.id, user.username)
 
     async def login(self, data: LoginRequest) -> TokenResponse:
         user = await self._user_repo.get_by_username(data.username)
         if not user or not verify_password(data.password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid username or password",
-            )
+            logger.warning("login_failed", reason="invalid_credentials")
+            raise AuthenticationError("Invalid username or password")
 
+        logger.info(
+            "user_login",
+            user_id=str(user.id),
+            tenant_id=str(user.tenant_id),
+        )
         return await self._issue_tokens(user.id, user.tenant_id, user.username)
 
     async def refresh(self, raw_token: str) -> TokenResponse:
         token_hash = hash_refresh_token(raw_token)
         stored = await self._refresh_repo.get_by_hash(token_hash)
         if not stored:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired refresh token",
-            )
+            raise AuthenticationError("Invalid or expired refresh token")
 
         user = await self._user_repo.get_by_id(stored.user_id)
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User no longer exists",
-            )
+            raise AuthenticationError("User no longer exists")
 
-        # Rotate: delete old, issue new
+        # Issue new tokens first, then revoke old refresh (avoids losing refresh on failure).
+        tokens = await self._issue_tokens(user.id, user.tenant_id, user.username)
         await self._refresh_repo.delete_by_hash(token_hash)
-        return await self._issue_tokens(user.id, user.tenant_id, user.username)
+        return tokens
 
     async def logout(self, raw_token: str) -> None:
         token_hash = hash_refresh_token(raw_token)

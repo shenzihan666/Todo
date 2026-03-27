@@ -1,3 +1,4 @@
+from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, TokenResponse
 from app.schemas.health import HealthErrorResponse, HealthOkResponse
 from app.schemas.speech import (
     ErrorResult,
@@ -16,13 +17,17 @@ __all__ = [
     "FinalResult",
     "HealthErrorResponse",
     "HealthOkResponse",
+    "LoginRequest",
     "PartialResult",
+    "RefreshRequest",
+    "RegisterRequest",
     "SegmentRead",
     "SpeechStartMessage",
     "SpeechStopMessage",
     "StreamConfig",
     "TenantCreate",
     "TenantRead",
+    "TokenResponse",
     "TodoCreate",
     "TodoRead",
     "TodoUpdate",

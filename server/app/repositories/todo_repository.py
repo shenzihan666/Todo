@@ -13,9 +13,13 @@ class TodoRepository(BaseRepository):
         super().__init__(session)
         self._tenant_id = tenant_id
 
-    async def list_all(self) -> list[Todo]:
+    async def list_all(self, *, limit: int = 100, offset: int = 0) -> list[Todo]:
         result = await self.session.execute(
-            select(Todo).where(Todo.tenant_id == self._tenant_id).order_by(Todo.created_at.desc()),
+            select(Todo)
+            .where(Todo.tenant_id == self._tenant_id)
+            .order_by(Todo.created_at.desc())
+            .limit(limit)
+            .offset(offset),
         )
         return list(result.scalars().all())
 

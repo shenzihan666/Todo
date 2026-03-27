@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import get_todo_service
 from app.schemas.todo import TodoCreate, TodoRead, TodoUpdate
@@ -12,8 +12,10 @@ router = APIRouter(prefix="/todos", tags=["todos"])
 @router.get("", response_model=list[TodoRead])
 async def list_todos(
     service: Annotated[TodoService, Depends(get_todo_service)],
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ):
-    return await service.list_todos()
+    return await service.list_todos(limit=limit, offset=offset)
 
 
 @router.post("", response_model=TodoRead, status_code=status.HTTP_201_CREATED)

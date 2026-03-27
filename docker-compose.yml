@@ -28,9 +28,17 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: todolist
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      # SENTRY_DSN: https://...@sentry.io/...
       WHISPER_MODEL_SIZE: large-v3
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     depends_on:
       db:
         condition: service_healthy

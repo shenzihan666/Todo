@@ -88,7 +88,13 @@ class SpeechViewModel(
                             continue
                         }
                         _errorMessage.value = null
-                        transcriber.startSession(buildSpeechWebSocketUrl(ip))
+                        val accessToken = userPreferences.getCachedAccessToken().trim()
+                        transcriber.startSession(
+                            buildSpeechWebSocketUrl(
+                                ip,
+                                accessToken = accessToken.takeIf { it.isNotEmpty() },
+                            ),
+                        )
                     }
                     SessionMsg.Stop -> transcriber.stopSession()
                 }

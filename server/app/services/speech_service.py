@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import contextlib
 import json
-import logging
 import time
 from typing import Any
 
+import structlog
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
@@ -21,20 +21,22 @@ from app.schemas.speech import (
     SpeechStopMessage,
     StreamConfig,
 )
-from app.services.transcription.faster_whisper_engine import FasterWhisperEngine
+from app.services.transcription.base import TranscriptionEngine
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SpeechSessionService:
-    def __init__(self, engine: FasterWhisperEngine) -> None:
+    def __init__(self, engine: TranscriptionEngine) -> None:
         self._engine = engine
 
     async def run(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        buffer = bytearray()
+        """Handle messages after the route has accepted the WebSocket (and optional auth)."""
+        full_buffer = bytearray()
+        partial_buffer = bytearray()
         stream_config: StreamConfig | None = None
         last_partial_time = 0.0
+        max_partial_bytes = 0
 
         try:
             while True:
@@ -44,11 +46,19 @@ class SpeechSessionService:
 
                 if message.get("text") is not None:
                     text = message["text"]
-                    assert isinstance(text, str)
+                    if not isinstance(text, str):
+                        await websocket.send_json(
+                            ErrorResult(
+                                code="invalid_frame",
+                                message="Expected text frame with JSON.",
+                            ).model_dump(),
+                        )
+                        continue
                     done = await self._handle_text_frame(
                         websocket,
                         text,
-                        buffer,
+                        full_buffer,
+                        partial_buffer,
                         stream_config,
                         last_partial_time,
                     )
@@ -56,12 +66,24 @@ class SpeechSessionService:
                         new_cfg, new_last_partial, should_exit = done
                         if new_cfg is not None:
                             stream_config = new_cfg
+                            max_partial_bytes = int(
+                                stream_config.sample_rate
+                                * 2
+                                * settings.speech_partial_window_seconds,
+                            )
                         last_partial_time = new_last_partial
                         if should_exit:
                             break
                 elif message.get("bytes") is not None:
                     data = message["bytes"]
-                    assert isinstance(data, bytes | bytearray)
+                    if not isinstance(data, bytes | bytearray):
+                        await websocket.send_json(
+                            ErrorResult(
+                                code="invalid_frame",
+                                message="Expected binary PCM frame.",
+                            ).model_dump(),
+                        )
+                        continue
                     if stream_config is None:
                         await websocket.send_json(
                             ErrorResult(
@@ -70,15 +92,20 @@ class SpeechSessionService:
                             ).model_dump(),
                         )
                         continue
-                    buffer.extend(data)
+                    full_buffer.extend(data)
+                    partial_buffer.extend(data)
+                    if max_partial_bytes > 0 and len(partial_buffer) > max_partial_bytes:
+                        overflow = len(partial_buffer) - max_partial_bytes
+                        del partial_buffer[:overflow]
+
                     now = time.monotonic()
                     interval_ok = (
                         now - last_partial_time
                     ) * 1000 >= settings.speech_partial_interval_ms
-                    size_ok = len(buffer) >= settings.speech_min_partial_bytes
+                    size_ok = len(partial_buffer) >= settings.speech_min_partial_bytes
                     if interval_ok and size_ok:
                         partial = await self._engine.transcribe_buffer(
-                            bytes(buffer), stream_config
+                            bytes(partial_buffer), stream_config
                         )
                         last_partial_time = now
                         if partial.text:
@@ -86,9 +113,9 @@ class SpeechSessionService:
                                 PartialResult(text=partial.text).model_dump()
                             )
         except WebSocketDisconnect:
-            logger.debug("Speech WebSocket disconnected")
-        except Exception as e:
-            logger.exception("Speech session error: %s", e)
+            logger.debug("speech_websocket_disconnected")
+        except Exception:
+            logger.exception("speech_session_error")
             with contextlib.suppress(Exception):
                 await websocket.send_json(
                     ErrorResult(
@@ -101,7 +128,8 @@ class SpeechSessionService:
         self,
         websocket: WebSocket,
         text: str,
-        buffer: bytearray,
+        full_buffer: bytearray,
+        partial_buffer: bytearray,
         stream_config: StreamConfig | None,
         last_partial_time: float,
     ) -> tuple[StreamConfig | None, float, bool] | None:
@@ -126,7 +154,8 @@ class SpeechSessionService:
                     ).model_dump(),
                 )
                 return None
-            buffer.clear()
+            full_buffer.clear()
+            partial_buffer.clear()
             cfg = start.config
             if cfg.encoding != "pcm_s16le":
                 await websocket.send_json(
@@ -164,7 +193,7 @@ class SpeechSessionService:
                     ).model_dump(),
                 )
                 return None
-            final = await self._engine.transcribe_buffer(bytes(buffer), stream_config)
+            final = await self._engine.transcribe_buffer(bytes(full_buffer), stream_config)
             segs = [SegmentRead(start=s.start, end=s.end, text=s.text) for s in final.segments]
             await websocket.send_json(
                 FinalResult(
@@ -173,7 +202,8 @@ class SpeechSessionService:
                     language=final.language,
                 ).model_dump(),
             )
-            buffer.clear()
+            full_buffer.clear()
+            partial_buffer.clear()
             return None, last_partial_time, True
 
         await websocket.send_json(

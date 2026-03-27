@@ -37,9 +37,3 @@ class RefreshTokenRepository(BaseRepository):
             delete(RefreshToken).where(RefreshToken.token_hash == token_hash),
         )
         await self.session.flush()
-
-    async def delete_all_for_user(self, user_id: uuid.UUID) -> None:
-        await self.session.execute(
-            delete(RefreshToken).where(RefreshToken.user_id == user_id),
-        )
-        await self.session.flush()

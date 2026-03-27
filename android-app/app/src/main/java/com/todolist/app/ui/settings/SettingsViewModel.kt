@@ -23,10 +23,18 @@ fun buildServerBaseUrl(host: String, port: Int = DEFAULT_SERVER_PORT): String {
 }
 
 /** WebSocket URL for speech-to-text (must match server `/api/v1/speech/ws`). */
-fun buildSpeechWebSocketUrl(host: String, port: Int = DEFAULT_SERVER_PORT): String {
+fun buildSpeechWebSocketUrl(
+    host: String,
+    port: Int = DEFAULT_SERVER_PORT,
+    accessToken: String? = null,
+): String {
     val h = host.trim()
     if (h.isEmpty()) return ""
-    return "ws://$h:$port/api/v1/speech/ws"
+    val base = "ws://$h:$port/api/v1/speech/ws"
+    val token = accessToken?.trim().orEmpty()
+    if (token.isEmpty()) return base
+    val encoded = java.net.URLEncoder.encode(token, java.nio.charset.StandardCharsets.UTF_8)
+    return "$base?access_token=$encoded"
 }
 
 enum class ServerSettingsError {

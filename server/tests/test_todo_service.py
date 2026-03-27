@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from app.core.exceptions import NotFoundError
 from app.models.todo import Todo
 from app.schemas.todo import TodoCreate, TodoUpdate
 from app.services.todo_service import TodoService
@@ -48,7 +49,7 @@ async def test_list_todos(service, mock_repo) -> None:
     mock_repo.list_all.return_value = [_make_todo(), _make_todo(id=2, title="Second")]
     result = await service.list_todos()
     assert len(result) == 2
-    mock_repo.list_all.assert_awaited_once()
+    mock_repo.list_all.assert_awaited_once_with(limit=100, offset=0)
 
 
 @pytest.mark.asyncio
@@ -62,9 +63,9 @@ async def test_get_todo_found(service, mock_repo) -> None:
 @pytest.mark.asyncio
 async def test_get_todo_not_found(service, mock_repo) -> None:
     mock_repo.get_by_id.return_value = None
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await service.get_todo(999)
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.identifier == 999
 
 
 @pytest.mark.asyncio
@@ -99,6 +100,6 @@ async def test_delete_todo(service, mock_repo) -> None:
 @pytest.mark.asyncio
 async def test_delete_todo_not_found(service, mock_repo) -> None:
     mock_repo.get_by_id.return_value = None
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await service.delete_todo(999)
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.identifier == 999

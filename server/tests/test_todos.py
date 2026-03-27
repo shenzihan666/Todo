@@ -3,10 +3,10 @@ from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
-from fastapi import HTTPException, status
 from httpx import ASGITransport, AsyncClient
 
 from app.api.deps import get_todo_service
+from app.core.exceptions import NotFoundError
 from app.main import create_app
 from app.models.todo import Todo
 from app.schemas.todo import TodoCreate, TodoUpdate
@@ -41,15 +41,13 @@ class FakeTodoService:
         self._store: dict[int, Todo] = {}
         self._seq = 0
 
-    async def list_todos(self) -> list[Todo]:
-        return sorted(self._store.values(), key=lambda t: t.created_at, reverse=True)
+    async def list_todos(self, limit: int = 100, offset: int = 0) -> list[Todo]:
+        all_sorted = sorted(self._store.values(), key=lambda t: t.created_at, reverse=True)
+        return all_sorted[offset : offset + limit]
 
     async def get_todo(self, todo_id: int) -> Todo:
         if todo_id not in self._store:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Todo {todo_id} not found",
-            )
+            raise NotFoundError("Todo", todo_id)
         return self._store[todo_id]
 
     async def create_todo(self, data: TodoCreate) -> Todo:
