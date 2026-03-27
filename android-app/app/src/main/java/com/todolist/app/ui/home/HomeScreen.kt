@@ -3,6 +3,7 @@ package com.todolist.app.ui.home
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -52,6 +54,15 @@ fun HomeContent(
             contract = ActivityResultContracts.RequestPermission(),
         ) { granted ->
             permissionGranted = granted
+        }
+
+    val pickImage =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickVisualMedia(),
+        ) { uri ->
+            if (uri != null) {
+                speechViewModel.onImagePicked(uri)
+            }
         }
 
     val transcript by speechViewModel.transcript.collectAsStateWithLifecycle()
@@ -121,17 +132,44 @@ fun HomeContent(
             item { Spacer(modifier = Modifier.padding(bottom = 16.dp)) }
         }
 
-        VoiceMicButton(
-            isListening = isListening,
-            audioLevel = audioLevel,
-            hasPermission = permissionGranted,
-            onHoldStart = { speechViewModel.onHoldStart() },
-            onHoldEnd = { speechViewModel.onHoldEnd() },
-            onRequestPermission = {
-                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            },
-            modifier = Modifier.padding(bottom = 16.dp),
-        )
+        // Mic column centered horizontally; + sits just outside the 168dp ring, vertically aligned with the green mic circle
+        // (not the column’s geometric center — timer text above shifts the mic center down).
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+        ) {
+            VoiceMicButton(
+                isListening = isListening,
+                audioLevel = audioLevel,
+                hasPermission = permissionGranted,
+                onHoldStart = { speechViewModel.onHoldStart() },
+                onHoldEnd = { speechViewModel.onHoldEnd() },
+                onRequestPermission = {
+                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                },
+                modifier = Modifier.align(Alignment.Center),
+            )
+            ImageAddButton(
+                onClick = {
+                    pickImage.launch(
+                        PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly,
+                        ),
+                    )
+                },
+                modifier =
+                    Modifier
+                        .align(Alignment.Center)
+                        .offset(
+                            // x: screen center → right edge of 168dp ring + half IconButton (~48dp)
+                            x = 84.dp + 4.dp,
+                            // y: align with center of 168dp mic area (below Column center due to timer row layout)
+                            y = 20.dp,
+                        ),
+            )
+        }
     }
 }
 

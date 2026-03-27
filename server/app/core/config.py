@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     # If set, POST /tenants requires header X-Tenant-Bootstrap-Key to match. Empty = disabled.
     tenant_bootstrap_api_key: str = ""
 
+    # Image uploads (POST /api/v1/media)
+    media_upload_dir: str = "data/uploads"
+    media_max_bytes: int = 10 * 1024 * 1024
+
     @model_validator(mode="after")
     def _assemble_database_url(self) -> "Settings":
         if not self.database_url:

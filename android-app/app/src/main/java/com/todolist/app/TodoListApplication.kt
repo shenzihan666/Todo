@@ -58,6 +58,7 @@ class TodoListApplication : Application() {
                         application = this@TodoListApplication,
                         transcriber = container.createSpeechTranscriber(),
                         userPreferences = container.userPreferencesRepository,
+                        mediaRepository = container.mediaRepository,
                     ) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")

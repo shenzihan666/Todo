@@ -8,6 +8,7 @@ import com.todolist.app.data.network.TokenAuthenticator
 import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.data.repository.AuthRepository
 import com.todolist.app.data.repository.HealthRepositoryImpl
+import com.todolist.app.data.repository.MediaRepositoryImpl
 import com.todolist.app.data.speech.RemoteSpeechTranscriber
 import com.todolist.app.domain.repository.HealthRepository
 import com.todolist.app.domain.speech.SpeechTranscriber
@@ -113,5 +114,9 @@ class AppContainer(
 
     val authRepository: AuthRepository by lazy {
         AuthRepository(userPreferencesRepository, ::createApiService)
+    }
+
+    val mediaRepository: MediaRepositoryImpl by lazy {
+        MediaRepositoryImpl(::createApiService)
     }
 }

@@ -1,12 +1,15 @@
 package com.todolist.app.ui.home
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.todolist.app.R
 import com.todolist.app.data.preferences.UserPreferencesRepository
+import com.todolist.app.data.repository.MediaRepositoryImpl
 import com.todolist.app.domain.speech.SpeechTranscriber
 import com.todolist.app.domain.speech.TranscriberState
+import com.todolist.app.ui.settings.buildServerBaseUrl
 import com.todolist.app.ui.settings.buildSpeechWebSocketUrl
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +33,7 @@ class SpeechViewModel(
     application: Application,
     private val transcriber: SpeechTranscriber,
     private val userPreferences: UserPreferencesRepository,
+    private val mediaRepository: MediaRepositoryImpl,
 ) : AndroidViewModel(application) {
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -108,6 +112,57 @@ class SpeechViewModel(
 
     fun onHoldEnd() {
         sessionControl.trySend(SessionMsg.Stop)
+    }
+
+    fun onImagePicked(uri: Uri) {
+        viewModelScope.launch {
+            val ip = userPreferences.serverIp.first()
+            if (ip.isEmpty()) {
+                _errorMessage.value =
+                    getApplication<Application>().getString(R.string.voice_error_no_server)
+                return@launch
+            }
+            if (userPreferences.getCachedAccessToken().trim().isEmpty()) {
+                _errorMessage.value =
+                    getApplication<Application>().getString(R.string.image_upload_error_not_signed_in)
+                return@launch
+            }
+            _errorMessage.value = null
+            mediaRepository
+                .uploadImage(
+                    buildServerBaseUrl(ip),
+                    uri,
+                    getApplication(),
+                )
+                .fold(
+                    onSuccess = { response ->
+                        val app = getApplication<Application>()
+                        _messages.value =
+                            _messages.value +
+                            ChatMessage(
+                                text = app.getString(
+                                    R.string.image_upload_user_message,
+                                    response.originalFilename,
+                                ),
+                                isUser = true,
+                            )
+                        _messages.value =
+                            _messages.value +
+                            ChatMessage(
+                                text = app.getString(
+                                    R.string.image_upload_mock_reply,
+                                    response.originalFilename,
+                                ),
+                                isUser = false,
+                            )
+                    },
+                    onFailure = { e ->
+                        _errorMessage.value =
+                            e.message?.takeIf { it.isNotBlank() }
+                                ?: getApplication<Application>().getString(R.string.image_upload_error)
+                    },
+                )
+        }
     }
 
     private sealed interface SessionMsg {

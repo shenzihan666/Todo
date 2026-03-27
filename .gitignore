@@ -12,6 +12,9 @@ Thumbs.db
 .env
 !.env.example
 
+# Server uploads (runtime binary files)
+server/data/uploads/
+
 # Python
 __pycache__/
 *.py[cod]
