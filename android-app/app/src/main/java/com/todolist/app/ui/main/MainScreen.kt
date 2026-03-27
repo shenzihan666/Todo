@@ -23,6 +23,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -45,11 +48,14 @@ fun MainRoute(
     val context = LocalContext.current
     val app = context.applicationContext as TodoListApplication
     val prefs = app.container.userPreferencesRepository
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    LaunchedEffect(prefs) {
-        prefs.isLoggedIn.collect { loggedIn ->
-            if (!loggedIn) {
-                onNavigateToAuth()
+    LaunchedEffect(lifecycleOwner, prefs) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            prefs.isLoggedIn.collect { loggedIn ->
+                if (!loggedIn) {
+                    onNavigateToAuth()
+                }
             }
         }
     }

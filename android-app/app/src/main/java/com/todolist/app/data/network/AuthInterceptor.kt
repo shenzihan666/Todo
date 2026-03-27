@@ -1,7 +1,6 @@
 package com.todolist.app.data.network
 
 import com.todolist.app.data.preferences.UserPreferencesRepository
-import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.Response
 
@@ -15,7 +14,7 @@ class AuthInterceptor(
             return chain.proceed(request)
         }
 
-        val token = runBlocking { prefs.getAccessTokenBlocking() }
+        val token = prefs.getCachedAccessToken()
         if (token.isEmpty()) {
             return chain.proceed(request)
         }

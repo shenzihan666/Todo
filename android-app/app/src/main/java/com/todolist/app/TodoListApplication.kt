@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.todolist.app.di.AppContainer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import com.todolist.app.ui.auth.AuthViewModel
 import com.todolist.app.ui.home.SpeechViewModel
 import com.todolist.app.ui.settings.SettingsViewModel
@@ -16,6 +18,9 @@ class TodoListApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        runBlocking(Dispatchers.IO) {
+            container.userPreferencesRepository.hydrateFromDataStore()
+        }
     }
 
     fun settingsViewModelFactory(): ViewModelProvider.Factory =

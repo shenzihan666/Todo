@@ -12,8 +12,6 @@ import com.todolist.app.data.speech.RemoteSpeechTranscriber
 import com.todolist.app.domain.repository.HealthRepository
 import com.todolist.app.domain.speech.SpeechTranscriber
 import com.todolist.app.ui.settings.buildServerBaseUrl
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -73,16 +71,14 @@ class AppContainer(
             .authenticator(
                 TokenAuthenticator(
                     getBaseUrl = {
-                        runBlocking {
-                            val ip = userPreferencesRepository.serverIp.first().trim()
-                            if (ip.isEmpty()) {
-                                ""
-                            } else {
-                                buildServerBaseUrl(ip)
-                            }
+                        val ip = userPreferencesRepository.getCachedServerIp().trim()
+                        if (ip.isEmpty()) {
+                            ""
+                        } else {
+                            buildServerBaseUrl(ip)
                         }
                     },
-                    getRefreshToken = { userPreferencesRepository.getRefreshTokenBlocking() },
+                    getRefreshToken = { userPreferencesRepository.getCachedRefreshToken() },
                     onTokenRefreshed = { access, refresh ->
                         userPreferencesRepository.updateTokens(access, refresh)
                     },

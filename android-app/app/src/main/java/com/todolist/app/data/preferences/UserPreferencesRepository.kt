@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -22,14 +23,21 @@ class UserPreferencesRepository(
     private val context: Context,
 ) {
 
+    /** Mirrors DataStore for synchronous reads from OkHttp (no runBlocking on the interceptor thread). */
+    private val cachedAccessToken = AtomicReference("")
+    private val cachedRefreshToken = AtomicReference("")
+    private val cachedServerIp = AtomicReference("")
+
     val serverIp: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[SERVER_IP_KEY].orEmpty()
     }
 
     suspend fun setServerIp(ip: String) {
+        val trimmed = ip.trim()
         context.dataStore.edit { prefs ->
-            prefs[SERVER_IP_KEY] = ip.trim()
+            prefs[SERVER_IP_KEY] = trimmed
         }
+        cachedServerIp.set(trimmed)
     }
 
     val accessToken: Flow<String> = context.dataStore.data.map { prefs ->
@@ -64,6 +72,8 @@ class UserPreferencesRepository(
             prefs[TENANT_ID_KEY] = tenantId
             prefs[USERNAME_KEY] = username
         }
+        cachedAccessToken.set(accessToken)
+        cachedRefreshToken.set(refreshToken)
     }
 
     suspend fun updateTokens(accessToken: String, refreshToken: String) {
@@ -71,6 +81,8 @@ class UserPreferencesRepository(
             prefs[ACCESS_TOKEN_KEY] = accessToken
             prefs[REFRESH_TOKEN_KEY] = refreshToken
         }
+        cachedAccessToken.set(accessToken)
+        cachedRefreshToken.set(refreshToken)
     }
 
     suspend fun clearAuth() {
@@ -80,7 +92,26 @@ class UserPreferencesRepository(
             prefs.remove(TENANT_ID_KEY)
             prefs.remove(USERNAME_KEY)
         }
+        cachedAccessToken.set("")
+        cachedRefreshToken.set("")
     }
+
+    /**
+     * Loads tokens and server IP from [DataStore] into memory. Call once at startup (e.g. [android.app.Application.onCreate])
+     * so OkHttp interceptors can read synchronously.
+     */
+    suspend fun hydrateFromDataStore() {
+        val prefs = context.dataStore.data.first()
+        cachedAccessToken.set(prefs[ACCESS_TOKEN_KEY].orEmpty())
+        cachedRefreshToken.set(prefs[REFRESH_TOKEN_KEY].orEmpty())
+        cachedServerIp.set(prefs[SERVER_IP_KEY].orEmpty())
+    }
+
+    fun getCachedAccessToken(): String = cachedAccessToken.get()
+
+    fun getCachedRefreshToken(): String = cachedRefreshToken.get()
+
+    fun getCachedServerIp(): String = cachedServerIp.get()
 
     suspend fun getAccessTokenBlocking(): String =
         context.dataStore.data.first()[ACCESS_TOKEN_KEY].orEmpty()

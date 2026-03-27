@@ -13,7 +13,7 @@ import okhttp3.Route
 
 class TokenAuthenticator(
     private val getBaseUrl: () -> String,
-    private val getRefreshToken: suspend () -> String,
+    private val getRefreshToken: () -> String,
     private val onTokenRefreshed: suspend (accessToken: String, refreshToken: String) -> Unit,
     private val onRefreshFailed: suspend () -> Unit,
     private val json: Json,
@@ -26,7 +26,7 @@ class TokenAuthenticator(
             return null
         }
 
-        val refreshToken = runBlocking { getRefreshToken() }
+        val refreshToken = getRefreshToken()
         if (refreshToken.isEmpty()) {
             runBlocking { onRefreshFailed() }
             return null

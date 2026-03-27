@@ -91,7 +91,10 @@ class SpeechSessionService:
             logger.exception("Speech session error: %s", e)
             with contextlib.suppress(Exception):
                 await websocket.send_json(
-                    ErrorResult(code="internal_error", message=str(e)).model_dump(),
+                    ErrorResult(
+                        code="internal_error",
+                        message="An internal error occurred.",
+                    ).model_dump(),
                 )
 
     async def _handle_text_frame(
@@ -115,9 +118,12 @@ class SpeechSessionService:
         if msg_type == "start":
             try:
                 start = SpeechStartMessage.model_validate(payload)
-            except ValidationError as e:
+            except ValidationError:
                 await websocket.send_json(
-                    ErrorResult(code="invalid_start", message=str(e)).model_dump(),
+                    ErrorResult(
+                        code="invalid_start",
+                        message="Invalid start message.",
+                    ).model_dump(),
                 )
                 return None
             buffer.clear()
@@ -143,9 +149,12 @@ class SpeechSessionService:
         if msg_type == "stop":
             try:
                 SpeechStopMessage.model_validate(payload)
-            except ValidationError as e:
+            except ValidationError:
                 await websocket.send_json(
-                    ErrorResult(code="invalid_stop", message=str(e)).model_dump(),
+                    ErrorResult(
+                        code="invalid_stop",
+                        message="Invalid stop message.",
+                    ).model_dump(),
                 )
                 return None
             if stream_config is None:

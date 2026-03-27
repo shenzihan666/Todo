@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 
 from sqlalchemy import text
@@ -6,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import settings
 from app.models import AppMetadata, Tenant, Todo  # noqa: F401 — register ORM tables
 from app.models.base import Base
+
+logger = logging.getLogger(__name__)
 
 engine = create_async_engine(
     settings.database_url,
@@ -38,6 +41,7 @@ async def check_database() -> bool:
             )
             return result.first() is not None
     except Exception:
+        logger.exception("Database health check failed")
         return False
 
 
