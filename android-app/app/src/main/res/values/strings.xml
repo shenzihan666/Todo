@@ -12,6 +12,17 @@
     <string name="content_desc_nav_settings">Settings tab</string>
     <string name="schedule_title">Schedule</string>
     <string name="schedule_placeholder">Your schedule will appear here.</string>
+    <string name="schedule_sample_meeting">Team sync</string>
+    <string name="schedule_sample_focus">Focus block</string>
+    <string name="schedule_sample_past">Last week note</string>
+    <string name="schedule_sample_design_review">Design review</string>
+    <string name="schedule_sample_lunch">Lunch</string>
+    <string name="schedule_sample_app_release">App release prep</string>
+    <string name="schedule_sample_standup">Stand-up</string>
+    <string name="schedule_sample_evening_sync">Evening sync</string>
+    <string name="schedule_swipe_hint_calendar">Swipe left to return to the week view</string>
+    <string name="schedule_empty">No events yet.</string>
+    <string name="schedule_more">+%1$d more</string>
     <string name="bills_title">Bills</string>
     <string name="bills_placeholder">Your bills will appear here.</string>
     <string name="voice_input_hold_desc">Hold to speak</string>
@@ -21,6 +32,7 @@
     <string name="content_desc_navigate_back">Navigate back</string>
     <string name="settings_section_server">Server</string>
     <string name="settings_section_account">Account</string>
+    <string name="settings_signed_in_as">Signed in as %1$s</string>
     <string name="server_ip_label">Server IP</string>
     <string name="server_ip_hint">e.g. 192.168.1.1</string>
     <string name="server_port_note">HTTP port defaults to 8000</string>

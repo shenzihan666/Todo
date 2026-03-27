@@ -7,9 +7,11 @@ import com.todolist.app.data.repository.AuthRepository
 import com.todolist.app.domain.model.HealthCheckResult
 import com.todolist.app.domain.repository.HealthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 const val DEFAULT_SERVER_PORT = 8000
@@ -52,6 +54,13 @@ class SettingsViewModel(
 
     private val _validationError = MutableStateFlow<ServerSettingsError?>(null)
     val validationError: StateFlow<ServerSettingsError?> = _validationError.asStateFlow()
+
+    val currentUsername: StateFlow<String> =
+        userPreferences.username.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            "",
+        )
 
     init {
         viewModelScope.launch {

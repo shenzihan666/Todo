@@ -47,11 +47,13 @@ fun SettingsRoute(
     val draftIp by viewModel.draftServerIp.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val validationError by viewModel.validationError.collectAsStateWithLifecycle()
+    val currentUsername by viewModel.currentUsername.collectAsStateWithLifecycle()
 
     SettingsScreen(
         modifier = modifier,
         onNavigateBack = onNavigateBack,
         onLogout = { viewModel.logout(onLoggedOut) },
+        currentUsername = currentUsername,
         serverIp = draftIp,
         onServerIpChange = viewModel::onServerIpChange,
         onTestConnection = viewModel::testConnection,
@@ -68,6 +70,7 @@ private fun SettingsFormContent(
     onTestConnection: () -> Unit,
     connectionState: ConnectionUiState,
     validationError: ServerSettingsError?,
+    currentUsername: String,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -151,6 +154,15 @@ private fun SettingsFormContent(
             modifier = Modifier.padding(bottom = 8.dp),
         )
 
+        if (currentUsername.isNotBlank()) {
+            Text(
+                text = stringResource(R.string.settings_signed_in_as, currentUsername),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
+
         Button(
             onClick = onLogout,
             modifier = Modifier
@@ -167,6 +179,7 @@ private fun SettingsFormContent(
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onLogout: () -> Unit,
+    currentUsername: String,
     serverIp: String,
     onServerIpChange: (String) -> Unit,
     onTestConnection: () -> Unit,
@@ -205,6 +218,7 @@ fun SettingsScreen(
                 onTestConnection = onTestConnection,
                 connectionState = connectionState,
                 validationError = validationError,
+                currentUsername = currentUsername,
                 onLogout = onLogout,
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
             )
@@ -216,6 +230,7 @@ fun SettingsScreen(
             onTestConnection = onTestConnection,
             connectionState = connectionState,
             validationError = validationError,
+            currentUsername = currentUsername,
             onLogout = onLogout,
             modifier = modifier.fillMaxSize(),
         )
