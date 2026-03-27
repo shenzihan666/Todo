@@ -38,6 +38,7 @@ import com.todolist.app.ui.components.TodoListAppBar
 import com.todolist.app.ui.home.HomeContent
 import com.todolist.app.ui.home.SpeechViewModel
 import com.todolist.app.ui.schedule.ScheduleScreen
+import com.todolist.app.ui.schedule.ScheduleViewModel
 import com.todolist.app.ui.settings.SettingsRoute
 
 @Composable
@@ -61,9 +62,11 @@ fun MainRoute(
     }
 
     val speechViewModel: SpeechViewModel = viewModel(factory = app.speechViewModelFactory())
+    val scheduleViewModel: ScheduleViewModel = viewModel(factory = app.scheduleViewModelFactory())
     MainScreen(
         modifier = modifier,
         speechViewModel = speechViewModel,
+        scheduleViewModel = scheduleViewModel,
         onLoggedOut = onNavigateToAuth,
     )
 }
@@ -72,6 +75,7 @@ fun MainRoute(
 @Composable
 fun MainScreen(
     speechViewModel: SpeechViewModel,
+    scheduleViewModel: ScheduleViewModel,
     onLoggedOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -151,7 +155,11 @@ fun MainScreen(
                         speechViewModel = speechViewModel,
                         modifier = Modifier.fillMaxSize(),
                     )
-                MainTab.Schedule -> ScheduleScreen(modifier = Modifier.fillMaxSize())
+                MainTab.Schedule ->
+                    ScheduleScreen(
+                        viewModel = scheduleViewModel,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 MainTab.Bills -> BillsScreen(modifier = Modifier.fillMaxSize())
                 MainTab.Settings ->
                     SettingsRoute(

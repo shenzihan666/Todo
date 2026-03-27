@@ -5,12 +5,16 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.todolist.app.R
+import com.todolist.app.data.network.AgentSseClient
+import com.todolist.app.data.network.AgentSseEvent
 import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.data.repository.MediaRepositoryImpl
 import com.todolist.app.domain.speech.SpeechTranscriber
 import com.todolist.app.domain.speech.TranscriberState
 import com.todolist.app.ui.settings.buildServerBaseUrl
 import com.todolist.app.ui.settings.buildSpeechWebSocketUrl
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,6 +38,7 @@ class SpeechViewModel(
     private val transcriber: SpeechTranscriber,
     private val userPreferences: UserPreferencesRepository,
     private val mediaRepository: MediaRepositoryImpl,
+    private val agentSseClient: AgentSseClient,
 ) : AndroidViewModel(application) {
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -52,6 +57,8 @@ class SpeechViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private var agentJob: Job? = null
+
     /**
      * Single consumer so [onHoldStart] / [onHoldEnd] stay in finger-down/up order.
      * Otherwise [stopSession] can run while preferences are still loading (state [Idle]),
@@ -65,17 +72,32 @@ class SpeechViewModel(
                 if (state == TranscriberState.Idle) {
                     val finalTranscript = transcriber.transcript.value
                     if (finalTranscript.isNotBlank()) {
-                        _messages.value = _messages.value + ChatMessage(
-                            text = finalTranscript,
-                            isUser = true,
-                            isPending = false,
-                        )
-                        // Mock AI reply
-                        _messages.value = _messages.value + ChatMessage(
-                            text = "收到你的语音：$finalTranscript",
-                            isUser = false,
-                            isPending = false,
-                        )
+                        _messages.value =
+                            _messages.value +
+                            ChatMessage(
+                                text = finalTranscript,
+                                isUser = true,
+                                isPending = false,
+                            )
+                        val assistantId = UUID.randomUUID().toString()
+                        _messages.value =
+                            _messages.value +
+                            ChatMessage(
+                                id = assistantId,
+                                text = "",
+                                isUser = false,
+                                isPending = true,
+                            )
+                        agentJob?.cancel()
+                        agentJob =
+                            viewModelScope.launch {
+                                try {
+                                    runAgentChat(finalTranscript, assistantId)
+                                } catch (e: CancellationException) {
+                                    markAssistantFinished(assistantId)
+                                    throw e
+                                }
+                            }
                     }
                 }
             }
@@ -107,6 +129,7 @@ class SpeechViewModel(
     }
 
     fun onHoldStart() {
+        agentJob?.cancel()
         sessionControl.trySend(SessionMsg.Start)
     }
 
@@ -165,6 +188,93 @@ class SpeechViewModel(
         }
     }
 
+    private fun markAssistantFinished(assistantId: String) {
+        _messages.value =
+            _messages.value.map { m ->
+                if (m.id == assistantId) {
+                    m.copy(isPending = false)
+                } else {
+                    m
+                }
+            }
+    }
+
+    private suspend fun runAgentChat(
+        userText: String,
+        assistantId: String,
+    ) {
+        val ip = userPreferences.serverIp.first()
+        if (ip.isEmpty()) {
+            _errorMessage.value =
+                getApplication<Application>().getString(R.string.voice_error_no_server)
+            markAssistantFinished(assistantId)
+            return
+        }
+        if (userPreferences.getCachedAccessToken().trim().isEmpty()) {
+            _errorMessage.value =
+                getApplication<Application>().getString(R.string.image_upload_error_not_signed_in)
+            markAssistantFinished(assistantId)
+            return
+        }
+        _errorMessage.value = null
+        val base = buildServerBaseUrl(ip)
+        try {
+            try {
+                agentSseClient.streamChat(base, userText).collect { ev ->
+                    when (ev) {
+                        is AgentSseEvent.Token -> {
+                            _messages.value =
+                                _messages.value.map { m ->
+                                    if (m.id == assistantId) {
+                                        m.copy(text = m.text + ev.text)
+                                    } else {
+                                        m
+                                    }
+                                }
+                        }
+                        is AgentSseEvent.Done -> {
+                            markAssistantFinished(assistantId)
+                        }
+                        is AgentSseEvent.Error -> {
+                            _errorMessage.value = ev.message
+                            _messages.value =
+                                _messages.value.map { m ->
+                                    if (m.id == assistantId) {
+                                        m.copy(
+                                            isPending = false,
+                                            text = m.text.ifEmpty { ev.message },
+                                        )
+                                    } else {
+                                        m
+                                    }
+                                }
+                        }
+                        is AgentSseEvent.ToolCall -> {}
+                        is AgentSseEvent.ToolResult -> {}
+                    }
+                }
+            } finally {
+                markAssistantFinished(assistantId)
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            _errorMessage.value =
+                e.message?.takeIf { it.isNotBlank() }
+                    ?: getApplication<Application>().getString(R.string.agent_chat_error)
+            _messages.value =
+                _messages.value.map { m ->
+                    if (m.id == assistantId) {
+                        m.copy(
+                            isPending = false,
+                            text = m.text.ifEmpty { _errorMessage.value ?: "" },
+                        )
+                    } else {
+                        m
+                    }
+                }
+        }
+    }
+
     private sealed interface SessionMsg {
         data object Start : SessionMsg
         data object Stop : SessionMsg
@@ -172,6 +282,7 @@ class SpeechViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        agentJob?.cancel()
         transcriber.destroy()
     }
 }

@@ -22,6 +22,7 @@
     <string name="schedule_sample_evening_sync">Evening sync</string>
     <string name="schedule_swipe_hint_calendar">Swipe left to return to the week view</string>
     <string name="schedule_empty">No events yet.</string>
+    <string name="schedule_todos_load_failed">Could not load tasks.</string>
     <string name="schedule_more">+%1$d more</string>
     <string name="bills_title">Bills</string>
     <string name="bills_placeholder">Your bills will appear here.</string>
@@ -32,6 +33,7 @@
     <string name="image_upload_user_message">Uploaded image: %1$s</string>
     <string name="image_upload_mock_reply">Received your image: %1$s</string>
     <string name="voice_error_no_server">Set a server IP in Settings before using voice.</string>
+    <string name="agent_chat_error">Could not load reply.</string>
     <string name="settings">Settings</string>
     <string name="content_desc_open_settings">Open settings</string>
     <string name="content_desc_navigate_back">Navigate back</string>

@@ -2,6 +2,7 @@ package com.todolist.app.di
 
 import android.content.Context
 import com.todolist.app.BuildConfig
+import com.todolist.app.data.network.AgentSseClient
 import com.todolist.app.data.network.ApiService
 import com.todolist.app.data.network.AuthInterceptor
 import com.todolist.app.data.network.TokenAuthenticator
@@ -9,6 +10,7 @@ import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.data.repository.AuthRepository
 import com.todolist.app.data.repository.HealthRepositoryImpl
 import com.todolist.app.data.repository.MediaRepositoryImpl
+import com.todolist.app.data.repository.TodoRepositoryImpl
 import com.todolist.app.data.speech.RemoteSpeechTranscriber
 import com.todolist.app.domain.repository.HealthRepository
 import com.todolist.app.domain.speech.SpeechTranscriber
@@ -91,11 +93,22 @@ class AppContainer(
             .build()
     }
 
+    /** Same auth as [authenticatedOkHttpClient] but tolerates long-running SSE streams. */
+    private val authenticatedAgentOkHttpClient: OkHttpClient by lazy {
+        authenticatedOkHttpClient.newBuilder()
+            .readTimeout(300, TimeUnit.SECONDS)
+            .callTimeout(300, TimeUnit.SECONDS)
+            .build()
+    }
+
     fun createSpeechTranscriber(): SpeechTranscriber =
         RemoteSpeechTranscriber(
             RemoteSpeechTranscriber.defaultWsClient(plainOkHttpClient),
             speechJson,
         )
+
+    fun createAgentSseClient(): AgentSseClient =
+        AgentSseClient(authenticatedAgentOkHttpClient, json)
 
     fun createApiService(baseUrl: String): ApiService {
         val base = baseUrl.trim().trimEnd('/') + "/"
@@ -118,5 +131,9 @@ class AppContainer(
 
     val mediaRepository: MediaRepositoryImpl by lazy {
         MediaRepositoryImpl(::createApiService)
+    }
+
+    val todoRepository: TodoRepositoryImpl by lazy {
+        TodoRepositoryImpl(::createApiService)
     }
 }

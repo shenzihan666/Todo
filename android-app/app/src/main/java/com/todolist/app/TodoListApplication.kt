@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import com.todolist.app.ui.auth.AuthViewModel
 import com.todolist.app.ui.home.SpeechViewModel
+import com.todolist.app.ui.schedule.ScheduleViewModel
 import com.todolist.app.ui.settings.SettingsViewModel
 
 class TodoListApplication : Application() {
@@ -59,6 +60,22 @@ class TodoListApplication : Application() {
                         transcriber = container.createSpeechTranscriber(),
                         userPreferences = container.userPreferencesRepository,
                         mediaRepository = container.mediaRepository,
+                        agentSseClient = container.createAgentSseClient(),
+                    ) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
+            }
+        }
+
+    fun scheduleViewModelFactory(): ViewModelProvider.Factory =
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {
+                    return ScheduleViewModel(
+                        application = this@TodoListApplication,
+                        todoRepository = container.todoRepository,
+                        userPreferences = container.userPreferencesRepository,
                     ) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
