@@ -53,6 +53,17 @@ class Settings(BaseSettings):
     media_upload_dir: str = "data/uploads"
     media_max_bytes: int = 10 * 1024 * 1024
 
+    # AI Agent (OpenAI-compatible endpoint)
+    agent_llm_base_url: str = "https://api.openai.com/v1"
+    agent_llm_model: str = "gpt-4o"
+    agent_llm_api_key: str = ""
+
+    # Agent system prompt override (empty = use built-in default from prompts.py)
+    agent_system_prompt: str = ""
+
+    # Web search (Tavily)
+    tavily_api_key: str = ""
+
     @model_validator(mode="after")
     def _assemble_database_url(self) -> "Settings":
         if not self.database_url:
