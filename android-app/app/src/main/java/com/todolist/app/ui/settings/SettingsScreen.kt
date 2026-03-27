@@ -40,6 +40,7 @@ fun SettingsRoute(
     onNavigateBack: () -> Unit,
     onLoggedOut: () -> Unit,
     modifier: Modifier = Modifier,
+    showNavigationBack: Boolean = true,
 ) {
     val factory = (LocalContext.current.applicationContext as TodoListApplication).settingsViewModelFactory()
     val viewModel: SettingsViewModel = viewModel(factory = factory)
@@ -56,7 +57,109 @@ fun SettingsRoute(
         onTestConnection = viewModel::testConnection,
         connectionState = connectionState,
         validationError = validationError,
+        showNavigationBack = showNavigationBack,
     )
+}
+
+@Composable
+private fun SettingsFormContent(
+    serverIp: String,
+    onServerIpChange: (String) -> Unit,
+    onTestConnection: () -> Unit,
+    connectionState: ConnectionUiState,
+    validationError: ServerSettingsError?,
+    onLogout: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val testLabel = stringResource(R.string.test_connection)
+    val testDesc = stringResource(R.string.content_desc_test_connection)
+    val logoutDesc = stringResource(R.string.content_desc_logout)
+
+    Column(
+        modifier =
+            modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.settings_section_server),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+
+        OutlinedTextField(
+            value = serverIp,
+            onValueChange = onServerIpChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.server_ip_label)) },
+            placeholder = { Text(stringResource(R.string.server_ip_hint)) },
+            supportingText = {
+                if (validationError == ServerSettingsError.EmptyServerIp) {
+                    Text(
+                        text = stringResource(R.string.error_server_ip_required),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                } else {
+                    Text(stringResource(R.string.server_port_note))
+                }
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+            isError = validationError != null,
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = onTestConnection,
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = testDesc },
+        ) {
+            Text(testLabel)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        val statusText = when (connectionState) {
+            ConnectionUiState.Idle -> stringResource(R.string.status_idle_hint)
+            ConnectionUiState.Checking -> stringResource(R.string.status_checking)
+            ConnectionUiState.Connected -> stringResource(R.string.status_connected)
+            is ConnectionUiState.Failed -> stringResource(
+                R.string.status_failed,
+                connectionState.reason,
+            )
+        }
+        val statusColor = when (connectionState) {
+            ConnectionUiState.Connected -> MaterialTheme.colorScheme.primary
+            is ConnectionUiState.Failed -> MaterialTheme.colorScheme.error
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        Text(
+            text = statusText,
+            style = MaterialTheme.typography.bodyLarge,
+            color = statusColor,
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(
+            text = stringResource(R.string.settings_section_account),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+
+        Button(
+            onClick = onLogout,
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = logoutDesc },
+        ) {
+            Text(stringResource(R.string.logout))
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,118 +173,51 @@ fun SettingsScreen(
     connectionState: ConnectionUiState,
     validationError: ServerSettingsError?,
     modifier: Modifier = Modifier,
+    showNavigationBack: Boolean = true,
 ) {
     val title = stringResource(R.string.settings)
     val backDesc = stringResource(R.string.content_desc_navigate_back)
-    val testLabel = stringResource(R.string.test_connection)
-    val testDesc = stringResource(R.string.content_desc_test_connection)
-    val logoutDesc = stringResource(R.string.content_desc_logout)
 
-    Scaffold(
-        modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surface,
-        topBar = {
-            TodoListAppBar(
-                title = title,
-                navigationIcon = {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.semantics { contentDescription = backDesc },
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null,
-                        )
-                    }
-                },
-            )
-        },
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_section_server),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-
-            OutlinedTextField(
-                value = serverIp,
-                onValueChange = onServerIpChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.server_ip_label)) },
-                placeholder = { Text(stringResource(R.string.server_ip_hint)) },
-                supportingText = {
-                    if (validationError == ServerSettingsError.EmptyServerIp) {
-                        Text(
-                            text = stringResource(R.string.error_server_ip_required),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    } else {
-                        Text(stringResource(R.string.server_port_note))
-                    }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                isError = validationError != null,
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = onTestConnection,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = testDesc },
-            ) {
-                Text(testLabel)
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            val statusText = when (connectionState) {
-                ConnectionUiState.Idle -> stringResource(R.string.status_idle_hint)
-                ConnectionUiState.Checking -> stringResource(R.string.status_checking)
-                ConnectionUiState.Connected -> stringResource(R.string.status_connected)
-                is ConnectionUiState.Failed -> stringResource(
-                    R.string.status_failed,
-                    connectionState.reason,
+    if (showNavigationBack) {
+        Scaffold(
+            modifier = modifier,
+            containerColor = MaterialTheme.colorScheme.surface,
+            topBar = {
+                TodoListAppBar(
+                    title = title,
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.semantics { contentDescription = backDesc },
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null,
+                            )
+                        }
+                    },
                 )
-            }
-            val statusColor = when (connectionState) {
-                ConnectionUiState.Connected -> MaterialTheme.colorScheme.primary
-                is ConnectionUiState.Failed -> MaterialTheme.colorScheme.error
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
-            }
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = statusColor,
+            },
+        ) { innerPadding ->
+            SettingsFormContent(
+                serverIp = serverIp,
+                onServerIpChange = onServerIpChange,
+                onTestConnection = onTestConnection,
+                connectionState = connectionState,
+                validationError = validationError,
+                onLogout = onLogout,
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
             )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = stringResource(R.string.settings_section_account),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-
-            Button(
-                onClick = onLogout,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = logoutDesc },
-            ) {
-                Text(stringResource(R.string.logout))
-            }
         }
+    } else {
+        SettingsFormContent(
+            serverIp = serverIp,
+            onServerIpChange = onServerIpChange,
+            onTestConnection = onTestConnection,
+            connectionState = connectionState,
+            validationError = validationError,
+            onLogout = onLogout,
+            modifier = modifier.fillMaxSize(),
+        )
     }
 }

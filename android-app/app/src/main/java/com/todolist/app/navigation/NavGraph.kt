@@ -12,7 +12,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.todolist.app.ui.auth.AuthRoute
-import com.todolist.app.ui.home.HomeRoute
+import com.todolist.app.ui.main.MainRoute
 import com.todolist.app.ui.settings.SettingsRoute
 
 private const val SETTINGS_MOTION_MS = 340
@@ -33,28 +33,15 @@ fun TodoListNavHost(
         composable(route = Screen.Auth.route) {
             AuthRoute(
                 onAuthSuccess = {
-                    navController.navigate(Screen.Home.route) {
+                    navController.navigate(Screen.Main.route) {
                         popUpTo(Screen.Auth.route) { inclusive = true }
                     }
                 },
                 onOpenSettings = { navController.navigate(Screen.Settings.route) },
             )
         }
-        composable(
-            route = Screen.Home.route,
-            exitTransition = {
-                slideOutHorizontally(
-                    targetOffsetX = { fullWidth -> -(fullWidth / 5) },
-                ) + fadeOut(animationSpec = settingsTween)
-            },
-            popEnterTransition = {
-                slideInHorizontally(
-                    initialOffsetX = { fullWidth -> -(fullWidth / 5) },
-                ) + fadeIn(animationSpec = settingsTween)
-            },
-        ) {
-            HomeRoute(
-                onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+        composable(route = Screen.Main.route) {
+            MainRoute(
                 onNavigateToAuth = {
                     navController.navigate(Screen.Auth.route) {
                         popUpTo(navController.graph.id) { inclusive = true }
@@ -76,7 +63,7 @@ fun TodoListNavHost(
             },
             popEnterTransition = {
                 slideInHorizontally(
-                    initialOffsetX = { fullWidth -> -(fullWidth / 5) },
+                    initialOffsetX = { fullWidth -> fullWidth },
                 ) + fadeIn(animationSpec = settingsTween)
             },
             popExitTransition = {

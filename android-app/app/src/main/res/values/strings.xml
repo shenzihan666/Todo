@@ -2,6 +2,18 @@
 <resources>
     <!-- app_name is set per product flavor (dev / prod) in app/build.gradle.kts -->
     <string name="home_title">Home</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_schedule">Schedule</string>
+    <string name="nav_bills">Bills</string>
+    <string name="nav_settings">Settings</string>
+    <string name="content_desc_nav_home">Home tab</string>
+    <string name="content_desc_nav_schedule">Schedule tab</string>
+    <string name="content_desc_nav_bills">Bills tab</string>
+    <string name="content_desc_nav_settings">Settings tab</string>
+    <string name="schedule_title">Schedule</string>
+    <string name="schedule_placeholder">Your schedule will appear here.</string>
+    <string name="bills_title">Bills</string>
+    <string name="bills_placeholder">Your bills will appear here.</string>
     <string name="voice_input_hold_desc">Hold to speak</string>
     <string name="voice_error_no_server">Set a server IP in Settings before using voice.</string>
     <string name="settings">Settings</string>
