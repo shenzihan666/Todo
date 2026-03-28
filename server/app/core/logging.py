@@ -54,7 +54,7 @@ def configure_logging(settings: Settings) -> None:
     if settings.log_format == "console":
         renderer: structlog.types.Processor = structlog.dev.ConsoleRenderer()
     else:
-        renderer = structlog.processors.JSONRenderer()
+        renderer = structlog.processors.JSONRenderer(ensure_ascii=False)
 
     formatter = structlog.stdlib.ProcessorFormatter(
         processor=renderer,
