@@ -8,6 +8,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage, ToolMessageChunk
 
 from app.api.deps import get_tenant_id
 from app.schemas.agent import AgentChatRequest
@@ -23,12 +24,30 @@ def _sse(event: str, data: str | dict) -> str:
     return f"event: {event}\ndata: {payload}\n\n"
 
 
+def _message_content_as_text(content: object) -> str:
+    """Normalize LangChain message content (str or multimodal blocks) to plain text."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(str(block.get("text", "")))
+        return "".join(parts)
+    return str(content)
+
+
 async def _stream_agent(
     tenant_id: uuid.UUID,
     message: str,
 ) -> AsyncIterator[str]:
     """Run the agent and yield SSE-formatted chunks."""
     agent = build_agent(tenant_id)
+    full_reply_parts: list[str] = []
 
     try:
         async for chunk in agent.astream(
@@ -49,23 +68,31 @@ async def _stream_agent(
                         yield _sse("tool_call", {"tool": name})
 
             # Tool result messages
-            if token.type == "tool":
+            if isinstance(token, (ToolMessage, ToolMessageChunk)):
                 yield _sse(
                     "tool_result",
                     {
                         "tool": token.name,
-                        "content": str(token.content)[:500],
+                        "content": _message_content_as_text(token.content)[:500],
                     },
                 )
 
-            # AI text content (skip tool-call-only messages)
-            if (
-                token.type == "ai"
-                and token.content
-                and not getattr(token, "tool_call_chunks", None)
-            ):
-                yield _sse("token", token.content)
+            # AI text: streaming uses AIMessageChunk, whose .type is "AIMessageChunk", not "ai"
+            if isinstance(token, (AIMessage, AIMessageChunk)):
+                if getattr(token, "tool_call_chunks", None):
+                    continue
+                text = _message_content_as_text(token.content)
+                if text:
+                    full_reply_parts.append(text)
+                    yield _sse("token", text)
 
+        full_text = "".join(full_reply_parts)
+        logger.info(
+            "agent_llm_response",
+            tenant_id=str(tenant_id),
+            reply_char_len=len(full_text),
+            reply_text=full_text,
+        )
         yield _sse("done", "")
 
     except Exception:

@@ -4,7 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -44,37 +44,34 @@ class AgentSseClient(
         message: String,
     ): Flow<AgentSseEvent> =
         flow {
-            val out = this
-            withContext(Dispatchers.IO) {
-                val url = baseUrl.trim().trimEnd('/') + "/api/v1/agent/chat"
-                val bodyJson =
-                    json.encodeToString(
-                        AgentChatRequestBody.serializer(),
-                        AgentChatRequestBody(message = message),
-                    )
-                val request =
-                    Request.Builder()
-                        .url(url)
-                        .addHeader("Accept", "text/event-stream")
-                        .post(bodyJson.toRequestBody("application/json".toMediaType()))
-                        .build()
-                val response = okHttpClient.newCall(request).execute()
-                if (!response.isSuccessful) {
-                    out.emit(AgentSseEvent.Error("HTTP ${response.code}"))
-                    return@withContext
-                }
-                val source =
-                    response.body?.source() ?: run {
-                        out.emit(AgentSseEvent.Error("Empty response body"))
-                        return@withContext
-                    }
-                try {
-                    consumeSse(out, source)
-                } finally {
-                    response.close()
-                }
+            val url = baseUrl.trim().trimEnd('/') + "/api/v1/agent/chat"
+            val bodyJson =
+                json.encodeToString(
+                    AgentChatRequestBody.serializer(),
+                    AgentChatRequestBody(message = message),
+                )
+            val request =
+                Request.Builder()
+                    .url(url)
+                    .addHeader("Accept", "text/event-stream")
+                    .post(bodyJson.toRequestBody("application/json".toMediaType()))
+                    .build()
+            val response = okHttpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                emit(AgentSseEvent.Error("HTTP ${response.code}"))
+                return@flow
             }
-        }
+            val source =
+                response.body?.source() ?: run {
+                    emit(AgentSseEvent.Error("Empty response body"))
+                    return@flow
+                }
+            try {
+                consumeSse(this, source)
+            } finally {
+                response.close()
+            }
+        }.flowOn(Dispatchers.IO)
 
     private suspend fun consumeSse(
         out: FlowCollector<AgentSseEvent>,

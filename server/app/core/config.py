@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     sentry_traces_sample_rate: float = 0.0
 
     # Faster-Whisper (speech-to-text)
-    whisper_model_size: str = "medium"
+    whisper_model_size: str = "small"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
     whisper_vad_filter: bool = True

@@ -8,9 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -73,29 +72,43 @@ fun HomeContent(
 
     val listState = rememberLazyListState()
 
-    LaunchedEffect(messages.size, transcript) {
-        if (messages.isNotEmpty() || transcript.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size)
+    LaunchedEffect(messages.size, transcript, errorMessage) {
+        if (messages.isNotEmpty() || transcript.isNotEmpty() || errorMessage != null) {
+            var lastIndex = messages.size - 1
+            if (isListening && transcript.isNotEmpty()) {
+                lastIndex += 1
+            }
+            if (errorMessage != null) {
+                lastIndex += 1
+            }
+            if (lastIndex >= 0) {
+                listState.animateScrollToItem(lastIndex)
+            }
         }
     }
 
-    Column(
+    // Full-height list with mic overlaid at the bottom (transparent) so messages use the whole
+    // area; bottom padding keeps the last bubble scrollable above the mic / + controls.
+    val micOverlayBottomInset = 240.dp
+
+    Box(
         modifier =
             modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         LazyColumn(
             state = listState,
             modifier =
                 Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxSize(),
+            contentPadding =
+                PaddingValues(
+                    top = 8.dp,
+                    bottom = micOverlayBottomInset,
+                ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { Spacer(modifier = Modifier.padding(top = 8.dp)) }
-
             items(messages, key = { it.id }) { msg ->
                 ChatBubble(
                     text = msg.text,
@@ -128,8 +141,6 @@ fun HomeContent(
                     }
                 }
             }
-
-            item { Spacer(modifier = Modifier.padding(bottom = 16.dp)) }
         }
 
         // Mic column centered horizontally; + sits just outside the 168dp ring, vertically aligned with the green mic circle
@@ -137,6 +148,7 @@ fun HomeContent(
         Box(
             modifier =
                 Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
         ) {
