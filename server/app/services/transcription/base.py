@@ -24,7 +24,14 @@ class TranscriptionEngine(Protocol):
     """Implementations may wrap Faster-Whisper, cloud APIs, etc."""
 
     async def transcribe_buffer(
-        self, audio_pcm_s16le: bytes, config: StreamConfig
+        self,
+        audio_pcm_s16le: bytes,
+        config: StreamConfig,
+        *,
+        beam_size: int | None = None,
     ) -> TranscriptionResult:
-        """Transcribe one PCM s16le buffer (mono)."""
+        """Transcribe one PCM s16le buffer (mono).
+
+        beam_size: optional override; default uses settings.whisper_beam_size (final quality).
+        """
         ...

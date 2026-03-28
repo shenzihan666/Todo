@@ -8,8 +8,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -19,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,15 +70,16 @@ fun HomeContent(
     val transcript by speechViewModel.transcript.collectAsStateWithLifecycle()
     val messages by speechViewModel.messages.collectAsStateWithLifecycle()
     val isListening by speechViewModel.isListening.collectAsStateWithLifecycle()
+    val isProcessing by speechViewModel.isProcessing.collectAsStateWithLifecycle()
     val audioLevel by speechViewModel.audioLevel.collectAsStateWithLifecycle()
     val errorMessage by speechViewModel.errorMessage.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
 
-    LaunchedEffect(messages.size, transcript, errorMessage) {
+    LaunchedEffect(messages.size, transcript, errorMessage, isListening, isProcessing) {
         if (messages.isNotEmpty() || transcript.isNotEmpty() || errorMessage != null) {
             var lastIndex = messages.size - 1
-            if (isListening && transcript.isNotEmpty()) {
+            if ((isListening || isProcessing) && transcript.isNotEmpty()) {
                 lastIndex += 1
             }
             if (errorMessage != null) {
@@ -117,13 +121,34 @@ fun HomeContent(
                 )
             }
 
-            if (isListening && transcript.isNotEmpty()) {
+            if ((isListening || isProcessing) && transcript.isNotEmpty()) {
                 item {
-                    ChatBubble(
-                        text = transcript,
-                        isUser = true,
-                        isPending = true,
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.End,
+                    ) {
+                        ChatBubble(
+                            text = transcript,
+                            isUser = true,
+                            isPending = true,
+                        )
+                        if (isProcessing) {
+                            Row(
+                                modifier =
+                                    Modifier
+                                        .padding(top = 6.dp)
+                                        .fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

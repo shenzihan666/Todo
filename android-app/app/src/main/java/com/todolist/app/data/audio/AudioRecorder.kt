@@ -7,13 +7,12 @@ import android.media.MediaRecorder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.sqrt
@@ -24,13 +23,14 @@ import kotlin.math.sqrt
  */
 class AudioRecorder(
     private val sampleRate: Int = 16_000,
-    private val chunkMs: Int = 480,
+    private val chunkMs: Int = 120,
 ) {
     private var audioRecord: AudioRecord? = null
     private var recordJob: Job? = null
 
-    private val _chunks = MutableSharedFlow<ByteArray>(extraBufferCapacity = 32)
-    val chunks: SharedFlow<ByteArray> = _chunks.asSharedFlow()
+    /** Unbounded so the record loop never blocks on send (avoids AudioRecord buffer overflow). */
+    private val _chunks = Channel<ByteArray>(capacity = Channel.UNLIMITED)
+    val chunks: Flow<ByteArray> = _chunks.receiveAsFlow()
 
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel.asStateFlow()
@@ -41,6 +41,9 @@ class AudioRecorder(
     @SuppressLint("MissingPermission")
     fun start(scope: CoroutineScope) {
         stop()
+        while (_chunks.tryReceive().isSuccess) {
+            // Drop leftovers from a previous session
+        }
         val minBuf = AudioRecord.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_IN_MONO,
@@ -68,7 +71,7 @@ class AudioRecorder(
                 while (acc.size >= chunkBytes) {
                     val chunk = acc.copyOfRange(0, chunkBytes)
                     acc = acc.copyOfRange(chunkBytes, acc.size)
-                    _chunks.emit(chunk)
+                    _chunks.trySend(chunk)
                 }
             }
         }

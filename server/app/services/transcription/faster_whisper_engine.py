@@ -46,7 +46,11 @@ class FasterWhisperEngine:
         self._model = None
 
     def _transcribe_sync(
-        self, audio_float32: np.ndarray, sample_rate: int, config: StreamConfig
+        self,
+        audio_float32: np.ndarray,
+        sample_rate: int,
+        config: StreamConfig,
+        beam_size: int | None = None,
     ) -> TranscriptionResult:
         if self._model is None:
             msg = "Whisper model not loaded"
@@ -59,12 +63,13 @@ class FasterWhisperEngine:
         text_parts: list[str] = []
         detected_language: str | None = None
 
+        beam = beam_size if beam_size is not None else settings.whisper_beam_size
         segments_gen, info = self._model.transcribe(
             audio_float32,
             language=language,
             task="transcribe",
             vad_filter=settings.whisper_vad_filter,
-            beam_size=settings.whisper_beam_size,
+            beam_size=beam,
         )
         detected_language = getattr(info, "language", None) or language
 
@@ -84,8 +89,12 @@ class FasterWhisperEngine:
         )
 
     async def transcribe_buffer(
-        self, audio_pcm_s16le: bytes, config: StreamConfig
+        self,
+        audio_pcm_s16le: bytes,
+        config: StreamConfig,
+        *,
+        beam_size: int | None = None,
     ) -> TranscriptionResult:
         audio = pcm_s16le_to_float32_mono(audio_pcm_s16le)
         sr = config.sample_rate
-        return await asyncio.to_thread(self._transcribe_sync, audio, sr, config)
+        return await asyncio.to_thread(self._transcribe_sync, audio, sr, config, beam_size)

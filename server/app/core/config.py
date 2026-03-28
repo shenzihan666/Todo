@@ -1,4 +1,6 @@
-from pydantic import model_validator
+from typing import Literal
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,16 +36,24 @@ class Settings(BaseSettings):
     sentry_environment: str = "development"
     sentry_traces_sample_rate: float = 0.0
 
-    # Faster-Whisper (speech-to-text)
+    # Speech-to-text engine: local Faster-Whisper or Alibaba DashScope Fun-ASR
+    speech_engine: Literal["whisper", "fun_asr"] = "whisper"
+    # DashScope (Fun-ASR); Beijing default WebSocket; Singapore: wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference
+    dashscope_api_key: str = ""
+    dashscope_base_ws_url: str = "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
+    fun_asr_model: str = "fun-asr-realtime"
+    fun_asr_language_hints: list[str] = Field(default_factory=lambda: ["zh", "en"])
+
+    # Faster-Whisper (speech-to-text, when speech_engine=whisper)
     whisper_model_size: str = "small"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
     whisper_vad_filter: bool = True
     whisper_beam_size: int = 5
-    speech_partial_interval_ms: int = 1500
-    speech_min_partial_bytes: int = 9600
+    speech_partial_interval_ms: int = 800
+    speech_min_partial_bytes: int = 4800
     # Rolling window (seconds) of PCM kept for partial transcription; full buffer kept for final.
-    speech_partial_window_seconds: int = 30
+    speech_partial_window_seconds: int = 10
     # Require `access_token` query param (JWT) on speech WebSocket.
     speech_require_auth: bool = True
     # If set, POST /tenants requires header X-Tenant-Bootstrap-Key to match. Empty = disabled.

@@ -105,7 +105,9 @@ class SpeechSessionService:
                     size_ok = len(partial_buffer) >= settings.speech_min_partial_bytes
                     if interval_ok and size_ok:
                         partial = await self._engine.transcribe_buffer(
-                            bytes(partial_buffer), stream_config
+                            bytes(partial_buffer),
+                            stream_config,
+                            beam_size=1,
                         )
                         last_partial_time = now
                         if partial.text:

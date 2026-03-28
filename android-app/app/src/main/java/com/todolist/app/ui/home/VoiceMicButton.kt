@@ -162,7 +162,7 @@ fun VoiceMicButton(
             contentAlignment = Alignment.Center,
         ) {
             ListeningPulseRings(
-                active = active,
+                active = isHolding,
                 ringPulse1 = ringPulse1,
                 ringPulse2 = ringPulse2,
             )

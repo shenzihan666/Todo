@@ -23,6 +23,13 @@ from app.core.exceptions import (
 from app.core.logging import configure_logging
 from app.core.middleware import AccessLogMiddleware, ContextMiddleware
 from app.services.transcription.faster_whisper_engine import FasterWhisperEngine
+from app.services.transcription.fun_asr_engine import FunAsrEngine
+
+
+def _create_transcription_engine() -> FasterWhisperEngine | FunAsrEngine:
+    if settings.speech_engine == "fun_asr":
+        return FunAsrEngine()
+    return FasterWhisperEngine()
 
 
 def init_sentry() -> None:
@@ -42,9 +49,12 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        engine = FasterWhisperEngine()
-        await asyncio.to_thread(engine.load)
-        app.state.whisper_engine = engine
+        engine = _create_transcription_engine()
+        if settings.speech_engine == "whisper":
+            await asyncio.to_thread(engine.load)
+        else:
+            engine.load()
+        app.state.transcription_engine = engine
         try:
             yield
         finally:

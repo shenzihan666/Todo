@@ -42,7 +42,7 @@ async def speech_websocket(websocket: WebSocket) -> None:
     logger.info("ws_connected")
     try:
         await websocket.accept()
-        engine = websocket.app.state.whisper_engine
+        engine = websocket.app.state.transcription_engine
         service = SpeechSessionService(engine)
         await service.run(websocket)
     finally:

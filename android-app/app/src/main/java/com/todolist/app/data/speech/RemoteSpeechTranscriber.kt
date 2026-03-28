@@ -96,14 +96,13 @@ class RemoteSpeechTranscriber(
                     }
                 }
 
+            recorder.start(scope)
             chunkJob =
                 scope.launch {
                     recorder.chunks.collect { chunk ->
                         client.sendPcmChunk(chunk)
                     }
                 }
-
-            recorder.start(scope)
             _state.value = TranscriberState.Listening
         }
     }

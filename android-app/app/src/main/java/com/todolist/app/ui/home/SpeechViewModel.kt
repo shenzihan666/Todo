@@ -54,6 +54,11 @@ class SpeechViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val isProcessing: StateFlow<Boolean> =
+        transcriber.state
+            .map { it == TranscriberState.Processing }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 

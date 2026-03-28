@@ -21,7 +21,7 @@ COPY scripts ./scripts
 COPY docker-entrypoint.sh .
 
 RUN chmod +x docker-entrypoint.sh \
-    && uv sync --frozen --no-dev
+    && uv sync --frozen --no-dev --extra whisper --extra fun-asr
 
 ENV PATH="/app/.venv/bin:$PATH"
 
