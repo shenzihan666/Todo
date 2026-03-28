@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import structlog
 from tavily import TavilyClient
+
+logger = structlog.get_logger(__name__)
 
 
 def build_search_tool(api_key: str):
@@ -19,6 +22,13 @@ def build_search_tool(api_key: str):
         """
         results = client.search(query, max_results=max_results)
         entries = results.get("results", [])
+        logger.info(
+            "agent_tool_call",
+            tool="web_search",
+            query=query[:500],
+            max_results=max_results,
+            result_count=len(entries),
+        )
         if not entries:
             return "No results found."
         parts: list[str] = []

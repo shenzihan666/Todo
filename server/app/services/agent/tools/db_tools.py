@@ -33,9 +33,10 @@ def build_db_tools(tenant_id: uuid.UUID) -> list:
             todo = await repo.create(TodoCreate(title=title, description=description or None))
             await session.commit()
             logger.info(
-                "agent_created_todo",
-                todo_id=todo.id,
+                "agent_tool_call",
+                tool="create_todo",
                 tenant_id=str(tenant_id),
+                todo_id=str(todo.id),
                 title=title,
             )
             return f'Created todo #{todo.id}: "{todo.title}"'
