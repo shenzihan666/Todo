@@ -154,6 +154,7 @@ class SpeechViewModel(
                                 }
                             }
                     }
+                    transcriber.clearTranscriptIfIdle()
                 }
             }
         }
@@ -228,7 +229,13 @@ class SpeechViewModel(
 
     fun onImagesPicked(uris: List<Uri>) {
         if (uris.isEmpty()) return
-        _pendingImageUris.value = _pendingImageUris.value + uris
+        val maxPending = 9
+        val merged = _pendingImageUris.value.toMutableList()
+        for (uri in uris) {
+            if (merged.size >= maxPending) break
+            if (uri !in merged) merged.add(uri)
+        }
+        _pendingImageUris.value = merged
     }
 
     fun removePendingImage(uri: Uri) {

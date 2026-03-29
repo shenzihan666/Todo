@@ -182,7 +182,42 @@ fun VoiceMicButton(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier,
+        modifier =
+            modifier.pointerInput(hasPermission, cancelThresholdPx) {
+                while (true) {
+                    awaitPointerEventScope {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        if (!hasPermission) {
+                            onRequestPermission()
+                            return@awaitPointerEventScope
+                        }
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        isHolding = true
+                        dragOffsetY = 0f
+                        onHoldStart()
+                        var lastOffset = 0f
+                        var cancelled = false
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                val change = event.changes.firstOrNull() ?: break
+                                lastOffset = change.position.y - down.position.y
+                                dragOffsetY = lastOffset
+                                if (!change.pressed) break
+                            }
+                            cancelled = lastOffset <= -cancelThresholdPx
+                        } finally {
+                            isHolding = false
+                            dragOffsetY = 0f
+                            if (cancelled) {
+                                onCancel()
+                            } else {
+                                onHoldEnd()
+                            }
+                        }
+                    }
+                }
+            },
     ) {
         val textAlpha by animateFloatAsState(
             targetValue = if (isHolding) 1f else 0f,
@@ -238,39 +273,6 @@ fun VoiceMicButton(
                             } else {
                                 holdDesc
                             }
-                    }
-                    .pointerInput(hasPermission, cancelThresholdPx) {
-                        awaitPointerEventScope {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            if (!hasPermission) {
-                                onRequestPermission()
-                                return@awaitPointerEventScope
-                            }
-                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                            isHolding = true
-                            dragOffsetY = 0f
-                            onHoldStart()
-                            var lastOffset = 0f
-                            var cancelled = false
-                            try {
-                                while (true) {
-                                    val event = awaitPointerEvent(PointerEventPass.Main)
-                                    val change = event.changes.firstOrNull() ?: break
-                                    lastOffset = change.position.y - down.position.y
-                                    dragOffsetY = lastOffset
-                                    if (!change.pressed) break
-                                }
-                                cancelled = lastOffset <= -cancelThresholdPx
-                            } finally {
-                                isHolding = false
-                                dragOffsetY = 0f
-                                if (cancelled) {
-                                    onCancel()
-                                } else {
-                                    onHoldEnd()
-                                }
-                            }
-                        }
                     },
             contentAlignment = Alignment.Center,
         ) {

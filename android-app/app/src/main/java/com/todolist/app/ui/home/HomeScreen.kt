@@ -20,8 +20,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -47,9 +49,11 @@ import java.io.File
 @Composable
 fun HomeContent(
     speechViewModel: SpeechViewModel,
+    listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     var permissionGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -89,6 +93,7 @@ fun HomeContent(
             if (uris.isNotEmpty()) {
                 speechViewModel.onImagesPicked(uris)
                 attachmentSheetVisible = false
+                focusManager.clearFocus()
             }
         }
 
@@ -100,6 +105,7 @@ fun HomeContent(
             if (success && captureUri != null) {
                 speechViewModel.onImagesPicked(listOf(captureUri!!))
                 attachmentSheetVisible = false
+                focusManager.clearFocus()
             }
         }
 
@@ -134,34 +140,9 @@ fun HomeContent(
     val pendingConfirmation by speechViewModel.pendingConfirmation.collectAsStateWithLifecycle()
     val pendingImageUris by speechViewModel.pendingImageUris.collectAsStateWithLifecycle()
 
-    val listState = rememberLazyListState()
-
     DisposableEffect(Unit) {
         onDispose {
             speechViewModel.onHomeLeave()
-        }
-    }
-
-    val lastAssistantTextLen = messages.lastOrNull { !it.isUser }?.text?.length ?: 0
-    LaunchedEffect(
-        messages.size,
-        transcript,
-        errorMessage,
-        isListening,
-        isProcessing,
-        lastAssistantTextLen,
-    ) {
-        if (messages.isNotEmpty() || transcript.isNotEmpty() || errorMessage != null) {
-            var lastIndex = messages.size - 1
-            if ((isListening || isProcessing) && transcript.isNotEmpty()) {
-                lastIndex += 1
-            }
-            if (errorMessage != null) {
-                lastIndex += 1
-            }
-            if (lastIndex >= 0) {
-                listState.animateScrollToItem(lastIndex)
-            }
         }
     }
 
@@ -180,7 +161,13 @@ fun HomeContent(
 
     // Full-height list with mic overlaid at the bottom (transparent) so messages use the whole
     // area; bottom padding keeps the last bubble scrollable above the mic / + controls.
-    val micOverlayBottomInset = if (attachmentSheetVisible) 520.dp else 240.dp
+    val pendingStripExtra = if (pendingImageUris.isNotEmpty()) 112.dp else 0.dp
+    val micOverlayBottomInset =
+        if (attachmentSheetVisible) {
+            520.dp
+        } else {
+            240.dp + pendingStripExtra
+        }
 
     Box(
         modifier =
@@ -280,22 +267,24 @@ fun HomeContent(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .zIndex(2f)
                     .padding(bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (pendingImageUris.isNotEmpty()) {
-                PendingImagesBar(
-                    uris = pendingImageUris,
-                    onRemove = { speechViewModel.removePendingImage(it) },
-                    onSend = { speechViewModel.sendPendingImages() },
+            // Mic row first; pending images strip sits below the mic so it does not cover chat bubbles.
+            // ImageAdd offset overlaps mic ring; VoiceMic on top so it receives touches near the + control.
+            Box {
+                ImageAddButton(
+                    sheetOpen = attachmentSheetVisible,
+                    onClick = { attachmentSheetVisible = !attachmentSheetVisible },
                     modifier =
                         Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
-                            .padding(bottom = 8.dp),
+                            .align(Alignment.Center)
+                            .offset(
+                                x = 84.dp + 4.dp,
+                                y = 20.dp,
+                            ),
                 )
-            }
-            Box {
                 VoiceMicButton(
                     isListening = isListening,
                     audioLevel = audioLevel,
@@ -306,20 +295,23 @@ fun HomeContent(
                     onRequestPermission = {
                         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
-                    modifier = Modifier.align(Alignment.Center),
-                )
-                ImageAddButton(
-                    sheetOpen = attachmentSheetVisible,
-                    onClick = { attachmentSheetVisible = !attachmentSheetVisible },
                     modifier =
                         Modifier
                             .align(Alignment.Center)
-                            .offset(
-                                // x: screen center → right edge of 168dp ring + half IconButton (~48dp)
-                                x = 84.dp + 4.dp,
-                                // y: align with center of 168dp mic area (below Column center due to timer row layout)
-                                y = 20.dp,
-                            ),
+                            .zIndex(1f),
+                )
+            }
+            if (pendingImageUris.isNotEmpty()) {
+                PendingImagesBar(
+                    uris = pendingImageUris,
+                    onRemove = { speechViewModel.removePendingImage(it) },
+                    onAddMore = { attachmentSheetVisible = true },
+                    onSend = { speechViewModel.sendPendingImages() },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .padding(top = 8.dp),
                 )
             }
         }
@@ -347,6 +339,7 @@ fun HomeContent(
             onRecentImageClick = { uri ->
                 speechViewModel.onImagesPicked(listOf(uri))
                 attachmentSheetVisible = false
+                focusManager.clearFocus()
             },
             canReadGallery = readImagesGranted,
         )

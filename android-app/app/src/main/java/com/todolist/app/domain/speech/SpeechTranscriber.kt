@@ -29,5 +29,8 @@ interface SpeechTranscriber {
     /** Abort without final transcript; clears text and returns to [TranscriberState.Idle]. */
     suspend fun cancelSession()
 
+    /** Clears [transcript] when [state] is [TranscriberState.Idle] (after a turn is handled in UI). */
+    suspend fun clearTranscriptIfIdle()
+
     fun destroy()
 }

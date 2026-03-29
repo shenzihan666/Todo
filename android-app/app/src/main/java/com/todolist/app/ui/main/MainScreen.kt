@@ -3,6 +3,7 @@ package com.todolist.app.ui.main
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -19,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -29,6 +31,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.todolist.app.R
 import com.todolist.app.TodoListApplication
@@ -81,6 +84,37 @@ fun MainScreen(
 ) {
     var tabIndex by rememberSaveable { mutableIntStateOf(0) }
     val selectedTab = MainTab.entries[tabIndex]
+
+    val homeListState = remember { LazyListState() }
+    val messages by speechViewModel.messages.collectAsStateWithLifecycle()
+    val transcript by speechViewModel.transcript.collectAsStateWithLifecycle()
+    val errorMessage by speechViewModel.errorMessage.collectAsStateWithLifecycle()
+    val isListening by speechViewModel.isListening.collectAsStateWithLifecycle()
+    val isProcessing by speechViewModel.isProcessing.collectAsStateWithLifecycle()
+    val lastAssistantTextLen = messages.lastOrNull { !it.isUser }?.text?.length ?: 0
+
+    LaunchedEffect(
+        messages.size,
+        transcript,
+        errorMessage,
+        isListening,
+        isProcessing,
+        lastAssistantTextLen,
+    ) {
+        if (selectedTab != MainTab.Home) return@LaunchedEffect
+        if (messages.isNotEmpty() || transcript.isNotEmpty() || errorMessage != null) {
+            var lastIndex = messages.size - 1
+            if ((isListening || isProcessing) && transcript.isNotEmpty()) {
+                lastIndex += 1
+            }
+            if (errorMessage != null) {
+                lastIndex += 1
+            }
+            if (lastIndex >= 0) {
+                homeListState.scrollToItem(lastIndex)
+            }
+        }
+    }
 
     val title =
         when (selectedTab) {
@@ -153,6 +187,7 @@ fun MainScreen(
                 MainTab.Home ->
                     HomeContent(
                         speechViewModel = speechViewModel,
+                        listState = homeListState,
                         modifier = Modifier.fillMaxSize(),
                     )
                 MainTab.Schedule ->

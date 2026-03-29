@@ -182,6 +182,14 @@ class RemoteSpeechTranscriber(
         }
     }
 
+    override suspend fun clearTranscriptIfIdle() {
+        mutex.withLock {
+            if (_state.value == TranscriberState.Idle) {
+                _transcript.value = ""
+            }
+        }
+    }
+
     override fun destroy() {
         job.cancel()
         recorder.stop()
