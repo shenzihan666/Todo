@@ -3,14 +3,34 @@ from __future__ import annotations
 import uuid
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class MediaRef(BaseModel):
+    """Reference to an uploaded image for chat history UI."""
+
+    id: uuid.UUID
+    content_type: str
 
 
 class AgentHistoryMessageOut(BaseModel):
     """One user/assistant turn for client chat history UI."""
 
     role: Literal["user", "assistant"]
-    content: str = Field(..., min_length=1)
+    content: str = Field(
+        "",
+        description="Text part; may be empty when the user message is image-only (legacy rows).",
+    )
+    media: list[MediaRef] = Field(
+        default_factory=list,
+        description="Images attached to this user turn (from checkpoint metadata).",
+    )
+
+    @model_validator(mode="after")
+    def _content_or_media(self) -> AgentHistoryMessageOut:
+        if not self.content.strip() and not self.media:
+            raise ValueError("AgentHistoryMessageOut requires non-empty content or media.")
+        return self
 
 
 class AgentChatRequest(BaseModel):
@@ -21,7 +41,10 @@ class AgentChatRequest(BaseModel):
     )
     media_ids: list[uuid.UUID] = Field(
         default_factory=list,
-        description="Reserved for future multimodal support",
+        description=(
+            "Uploaded image ids (POST /api/v1/media) to include as vision input for this turn; "
+            "tenant-scoped."
+        ),
     )
     require_confirmation: bool = Field(
         False,

@@ -1,6 +1,7 @@
 package com.todolist.app.di
 
 import android.content.Context
+import coil.ImageLoader
 import com.todolist.app.BuildConfig
 import com.todolist.app.data.network.AgentSseClient
 import com.todolist.app.data.network.ApiService
@@ -145,5 +146,13 @@ class AppContainer(
 
     val todoRepository: TodoRepositoryImpl by lazy {
         TodoRepositoryImpl(::createApiService)
+    }
+
+    /** Coil: same authenticated OkHttp as API so `GET /api/v1/media/{id}` works in chat bubbles. */
+    val imageLoader: ImageLoader by lazy {
+        ImageLoader.Builder(appContext)
+            .okHttpClient(authenticatedOkHttpClient)
+            .crossfade(true)
+            .build()
     }
 }

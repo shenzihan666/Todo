@@ -35,6 +35,10 @@ data class ChatMessage(
     val isPending: Boolean = false,
     /** Voice agent SSE reply: show typewriter + processing/done status under the bubble. */
     val showAgentStatusRow: Boolean = false,
+    /** Local images shown in the user bubble for the current send. */
+    val imageUris: List<Uri> = emptyList(),
+    /** Authenticated `GET /api/v1/media/{id}` URLs after history restore. */
+    val mediaUrls: List<String> = emptyList(),
 )
 
 /** Pending agent write operations waiting for user confirmation (sheet). */
@@ -101,6 +105,7 @@ class SpeechViewModel(
                                 text = finalTranscript,
                                 isUser = true,
                                 isPending = false,
+                                imageUris = pendingSnapshot,
                             )
                         val assistantId = UUID.randomUUID().toString()
                         _messages.value =
@@ -194,11 +199,16 @@ class SpeechViewModel(
                 if (rows.isEmpty()) return@fold
                 _messages.value =
                     rows.map { row ->
+                        val mediaUrls =
+                            row.media.map { m ->
+                                base.trimEnd('/') + "/api/v1/media/" + m.id
+                            }
                         ChatMessage(
                             text = row.content,
                             isUser = row.role == "user",
                             isPending = false,
                             showAgentStatusRow = false,
+                            mediaUrls = mediaUrls,
                         )
                     }
             },
@@ -248,8 +258,8 @@ class SpeechViewModel(
 
     fun sendPendingImages() {
         viewModelScope.launch {
-            val uris = _pendingImageUris.value
-            if (uris.isEmpty()) return@launch
+            val urisSnapshot = _pendingImageUris.value.toList()
+            if (urisSnapshot.isEmpty()) return@launch
             val ip = userPreferences.serverIp.first()
             if (ip.isEmpty()) {
                 _errorMessage.value =
@@ -264,47 +274,33 @@ class SpeechViewModel(
             _errorMessage.value = null
             val base = buildServerBaseUrl(ip)
             val app = getApplication<Application>()
-            uploadPendingImages(uris, base).fold(
+            uploadPendingImages(urisSnapshot, base).fold(
                 onSuccess = { responses ->
                     _pendingImageUris.value = emptyList()
-                    val userText =
-                        if (responses.size == 1) {
-                            app.getString(
-                                R.string.image_upload_user_message,
-                                responses.first().originalFilename,
-                            )
-                        } else {
-                            val names = responses.joinToString { it.originalFilename }
-                            app.getString(
-                                R.string.image_upload_user_message_batch,
-                                responses.size,
-                                names,
-                            )
-                        }
-                    val mockText =
-                        if (responses.size == 1) {
-                            app.getString(
-                                R.string.image_upload_mock_reply,
-                                responses.first().originalFilename,
-                            )
-                        } else {
-                            app.getString(
-                                R.string.image_upload_mock_reply_batch,
-                                responses.size,
-                            )
-                        }
+                    val defaultMsg = app.getString(R.string.image_send_default_message)
+                    val assistantId = UUID.randomUUID().toString()
+                    val mediaIds = responses.map { it.id }
                     _messages.value =
                         _messages.value +
                         ChatMessage(
-                            text = userText,
+                            text = defaultMsg,
                             isUser = true,
+                            imageUris = urisSnapshot,
                         )
                     _messages.value =
                         _messages.value +
                         ChatMessage(
-                            text = mockText,
+                            id = assistantId,
+                            text = "",
                             isUser = false,
+                            isPending = true,
+                            showAgentStatusRow = true,
                         )
+                    agentJob?.cancel()
+                    agentJob =
+                        viewModelScope.launch {
+                            runAgentChat(defaultMsg, assistantId, mediaIds)
+                        }
                 },
                 onFailure = { e ->
                     _errorMessage.value =

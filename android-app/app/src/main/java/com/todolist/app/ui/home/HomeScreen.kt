@@ -3,6 +3,9 @@ package com.todolist.app.ui.home
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import coil.ImageLoader
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,13 +39,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.todolist.app.R
+import com.todolist.app.TodoListApplication
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.io.File
@@ -140,6 +147,11 @@ fun HomeContent(
     val pendingConfirmation by speechViewModel.pendingConfirmation.collectAsStateWithLifecycle()
     val pendingImageUris by speechViewModel.pendingImageUris.collectAsStateWithLifecycle()
 
+    val imageLoader =
+        remember(context) {
+            (context.applicationContext as TodoListApplication).container.imageLoader
+        }
+
     DisposableEffect(Unit) {
         onDispose {
             speechViewModel.onHomeLeave()
@@ -198,6 +210,7 @@ fun HomeContent(
                             isPending = msg.isPending,
                             messageId = msg.id,
                             useTypewriter = msg.isPending,
+                            imageLoader = imageLoader,
                         )
                         AssistantReplyStatusRow(
                             isStreaming = msg.isPending,
@@ -209,6 +222,9 @@ fun HomeContent(
                         text = msg.text,
                         isUser = msg.isUser,
                         isPending = msg.isPending,
+                        imageUris = msg.imageUris,
+                        mediaUrls = msg.mediaUrls,
+                        imageLoader = imageLoader,
                     )
                 }
             }
@@ -223,6 +239,7 @@ fun HomeContent(
                             text = transcript,
                             isUser = true,
                             isPending = true,
+                            imageLoader = imageLoader,
                         )
                         if (isProcessing) {
                             Row(
@@ -362,6 +379,9 @@ private fun readImagePermission(): String =
         Manifest.permission.READ_EXTERNAL_STORAGE
     }
 
+private val BubbleSingleImageMax = 200.dp
+private val BubbleThumbSize = 80.dp
+
 @Composable
 fun ChatBubble(
     text: String,
@@ -369,8 +389,12 @@ fun ChatBubble(
     isPending: Boolean,
     messageId: String? = null,
     useTypewriter: Boolean = false,
+    imageUris: List<Uri> = emptyList(),
+    mediaUrls: List<String> = emptyList(),
+    imageLoader: ImageLoader,
     modifier: Modifier = Modifier,
 ) {
+    val ctx = LocalContext.current
     val backgroundColor =
         if (isUser) {
             MaterialTheme.colorScheme.primaryContainer
@@ -405,25 +429,71 @@ fun ChatBubble(
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            when {
-                !isUser && useTypewriter && messageId != null ->
-                    TypewriterAssistantText(
-                        messageId = messageId,
-                        fullText = text,
-                        color = textColor.copy(alpha = 0.92f),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                else ->
-                    Text(
-                        text =
-                            if (isPending && !useTypewriter) {
-                                stringResource(R.string.chat_message_pending, text)
-                            } else {
-                                text
-                            },
-                        color = if (isPending) textColor.copy(alpha = 0.7f) else textColor,
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
+            val imageCount = imageUris.size + mediaUrls.size
+            val thumbSize =
+                if (imageCount == 1) BubbleSingleImageMax else BubbleThumbSize
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (imageUris.isNotEmpty()) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(imageUris.size, key = { imageUris[it].toString() }) { idx ->
+                            AsyncImage(
+                                model = imageUris[idx],
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier =
+                                    Modifier
+                                        .size(thumbSize)
+                                        .clip(RoundedCornerShape(12.dp)),
+                            )
+                        }
+                    }
+                }
+                if (mediaUrls.isNotEmpty()) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(mediaUrls.size, key = { mediaUrls[it] }) { idx ->
+                            AsyncImage(
+                                model =
+                                    ImageRequest.Builder(ctx)
+                                        .data(mediaUrls[idx])
+                                        .crossfade(true)
+                                        .build(),
+                                imageLoader = imageLoader,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier =
+                                    Modifier
+                                        .size(thumbSize)
+                                        .clip(RoundedCornerShape(12.dp)),
+                            )
+                        }
+                    }
+                }
+                when {
+                    !isUser && useTypewriter && messageId != null ->
+                        TypewriterAssistantText(
+                            messageId = messageId,
+                            fullText = text,
+                            color = textColor.copy(alpha = 0.92f),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    else ->
+                        Text(
+                            text =
+                                if (isPending && !useTypewriter) {
+                                    stringResource(R.string.chat_message_pending, text)
+                                } else {
+                                    text
+                                },
+                            color = if (isPending) textColor.copy(alpha = 0.7f) else textColor,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                }
             }
         }
     }

@@ -9,7 +9,7 @@
 | `users` | 用户账号；关联 `tenants` |
 | `refresh_tokens` | 刷新令牌存储 |
 | `todos` | `id`、**tenant_id**（FK → `tenants`）、标题、描述、完成状态、可选 **`scheduled_at`**（用户意图日程时刻，TIMESTAMPTZ）、`created_at`、`updated_at`（迁移 `006_add_scheduled_at_on_todos`） |
-| `media_uploads` | 上传文件元数据；**tenant_id** 隔离（见迁移 `004_add_media_uploads`） |
+| `media_uploads` | 上传文件元数据；**tenant_id** 隔离（见迁移 `004_add_media_uploads`）。Agent 多模态对话在请求中传 `media_ids` 引用本表；**无**到消息行的外键，用户轮次的附件列表由 LangGraph checkpoint 内 `HumanMessage.additional_kwargs["media_ids"]` 与历史 API 对齐。 |
 | `conversations` | Agent 对话线程元数据：`id`（UUID，与 LangGraph `thread_id` 一致）、**tenant_id**、可选 `title`、`created_at` / `updated_at`（迁移 `005_add_conversations`） |
 
 ## LangGraph 托管表（非 Alembic）

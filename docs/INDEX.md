@@ -17,7 +17,7 @@
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
 | [architecture/repository-structure.md](./architecture/repository-structure.md) | 仓库目录结构 | 目录、结构、server、android-app、db |
-| [architecture/server.md](./architecture/server.md) | 服务端分层、语音 STT、Agent 记忆与线程、确认后写入 | FastAPI、分层、WebSocket、whisper、fun_asr、speech、agent、thread、LangGraph、checkpoint、memory、list_todos、delete_todo、require_confirmation、proposed_actions、execute-actions |
+| [architecture/server.md](./architecture/server.md) | 服务端分层、语音 STT、Agent 记忆与线程、确认后写入、多模态图片 | FastAPI、分层、WebSocket、whisper、fun_asr、speech、agent、thread、LangGraph、checkpoint、memory、list_todos、delete_todo、require_confirmation、proposed_actions、execute-actions、multimodal、media_ids、vision、image_url |
 
 ### 研发流程
 
@@ -34,13 +34,13 @@
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
 | [domain/multi-tenancy.md](./domain/multi-tenancy.md) | 多租户模型与 API 约定 | tenant_id、JWT、租户、隔离 |
-| [domain/database-schema.md](./domain/database-schema.md) | 数据库表概要 | tenants、todos、scheduled_at、app_metadata、conversations、checkpoint、store |
+| [domain/database-schema.md](./domain/database-schema.md) | 数据库表概要 | tenants、todos、scheduled_at、app_metadata、conversations、checkpoint、store、media_uploads、media_ids |
 
 ### 客户端平台
 
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
-| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间、Agent 气泡与确认清单 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、clearTranscriptIfIdle、PendingImagesBar、Schedule、scheduled_at、Agent SSE、流式、ConfirmActionsSheet、execute-actions、thread_id、history、AttachmentImageSheet、ModalBottomSheet、MediaStore、FileProvider、READ_MEDIA_IMAGES、CAMERA、PickMultipleVisualMedia、media_ids、Coil、 flavors、strings.xml、i18n |
+| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间、Agent 气泡与确认清单、聊天图片 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、clearTranscriptIfIdle、PendingImagesBar、Schedule、scheduled_at、Agent SSE、流式、ConfirmActionsSheet、execute-actions、thread_id、history、AttachmentImageSheet、ModalBottomSheet、MediaStore、FileProvider、READ_MEDIA_IMAGES、CAMERA、PickMultipleVisualMedia、media_ids、Coil、ImageLoader、ChatBubble、imageUris、mediaUrls、flavors、strings.xml、i18n |
 
 ---
 

@@ -22,6 +22,7 @@ from app.api.deps import get_tenant_id
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.exceptions import NotFoundError
+from app.repositories.media_repository import MediaRepository
 from app.repositories.todo_repository import TodoRepository
 from app.schemas.agent import (
     AgentChatRequest,
@@ -29,6 +30,7 @@ from app.schemas.agent import (
     ConversationOut,
     ExecuteActionsRequest,
     ExecuteActionsResponse,
+    MediaRef,
     MemoryItemOut,
     MemoryPutBody,
 )
@@ -36,6 +38,7 @@ from app.schemas.todo import TodoCreate, TodoUpdate
 from app.services.agent.agent_factory import build_agent
 from app.services.agent.memory_infra import memory_infra_initialized
 from app.services.agent.memory_provider import StoreMemoryProvider
+from app.services.agent.resolve_media import ResolvedMedia, resolve_media_for_agent
 from app.services.agent.tools.db_tools import _parse_scheduled_at_iso
 from app.services.conversation_service import ConversationService
 
@@ -72,19 +75,74 @@ def _message_content_as_text(content: object) -> str:
     return str(content)
 
 
-def _history_messages_from_state(raw_messages: list[Any]) -> list[AgentHistoryMessageOut]:
+async def _media_refs_for_human_message(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    msg: HumanMessage,
+) -> list[MediaRef]:
+    """Resolve ``media_ids`` stored on the HumanMessage for history API."""
+    kw = getattr(msg, "additional_kwargs", None) or {}
+    raw_ids = kw.get("media_ids")
+    if not raw_ids:
+        return []
+    repo = MediaRepository(session, tenant_id)
+    refs: list[MediaRef] = []
+    for x in raw_ids:
+        try:
+            mid = uuid.UUID(str(x))
+        except ValueError:
+            continue
+        row = await repo.get_by_id(mid)
+        if row is not None:
+            refs.append(MediaRef(id=row.id, content_type=row.content_type))
+    return refs
+
+
+async def _history_messages_from_state(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    raw_messages: list[Any],
+) -> list[AgentHistoryMessageOut]:
     """Map LangGraph state messages to user/assistant rows for the mobile chat UI."""
     out: list[AgentHistoryMessageOut] = []
     for msg in raw_messages:
         if isinstance(msg, HumanMessage):
-            text = _message_content_as_text(msg.content)
-            if text.strip():
-                out.append(AgentHistoryMessageOut(role="user", content=text))
+            text = _message_content_as_text(msg.content).strip()
+            media_refs = await _media_refs_for_human_message(session, tenant_id, msg)
+            if not text and not media_refs:
+                continue
+            out.append(
+                AgentHistoryMessageOut(
+                    role="user",
+                    content=text,
+                    media=media_refs,
+                ),
+            )
         elif isinstance(msg, AIMessage):
-            text = _message_content_as_text(msg.content)
-            if text.strip():
+            text = _message_content_as_text(msg.content).strip()
+            if text:
                 out.append(AgentHistoryMessageOut(role="assistant", content=text))
     return out
+
+
+def _build_human_message(message: str, resolved: list[ResolvedMedia]) -> HumanMessage:
+    """Build text or multimodal user message for the agent graph."""
+    prefixed = _user_message_with_reference_utc(message)
+    if not resolved:
+        return HumanMessage(content=prefixed)
+    blocks: list[dict[str, Any]] = [{"type": "text", "text": prefixed}]
+    for m in resolved:
+        data_url = f"data:{m.content_type};base64,{m.base64_data}"
+        blocks.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": data_url},
+            },
+        )
+    return HumanMessage(
+        content=blocks,
+        additional_kwargs={"media_ids": [str(m.media_id) for m in resolved]},
+    )
 
 
 def _todo_update_from_execute_args(payload: dict[str, Any]) -> TodoUpdate:
@@ -120,8 +178,10 @@ async def _stream_agent(
     *,
     thread_id: str | None,
     require_confirmation: bool = False,
+    resolved_media: list[ResolvedMedia] | None = None,
 ) -> AsyncIterator[str]:
     """Run the agent and yield SSE-formatted chunks."""
+    resolved = resolved_media or []
     proposed: list[dict[str, Any]] | None = [] if require_confirmation else None
     agent = build_agent(tenant_id, proposed_actions=proposed)
     full_reply_parts: list[str] = []
@@ -135,9 +195,11 @@ async def _stream_agent(
         }
         yield _sse("thread", {"thread_id": thread_id})
 
+    human = _build_human_message(message, resolved)
+
     try:
         async for chunk in agent.astream(
-            {"messages": [{"role": "user", "content": _user_message_with_reference_utc(message)}]},
+            {"messages": [human]},
             stream_mode="messages",
             version="v2",
             config=stream_config,
@@ -202,7 +264,10 @@ async def agent_chat(
         tenant_id=str(tenant_id),
         message_len=len(body.message),
         has_thread_id=body.thread_id is not None,
+        media_count=len(body.media_ids),
     )
+
+    resolved_media = await resolve_media_for_agent(session, tenant_id, list(body.media_ids))
 
     resolved_thread: str | None = None
     if settings.agent_memory_enabled and memory_infra_initialized():
@@ -219,6 +284,7 @@ async def agent_chat(
             body.message,
             thread_id=resolved_thread,
             require_confirmation=body.require_confirmation,
+            resolved_media=resolved_media,
         ),
         media_type="text/event-stream",
         headers={
@@ -330,7 +396,7 @@ async def get_agent_thread_history(
     raw = values.get("messages")
     if not isinstance(raw, list):
         return []
-    return _history_messages_from_state(raw)
+    return await _history_messages_from_state(session, tenant_id, raw)
 
 
 @router.delete("/threads/{thread_id}", status_code=204)

@@ -62,9 +62,16 @@ private data class AgentChatRequestBody(
 )
 
 @Serializable
+data class MediaRefDto(
+    val id: String,
+    @SerialName("content_type") val contentType: String,
+)
+
+@Serializable
 data class AgentHistoryMessageDto(
     val role: String,
-    val content: String,
+    val content: String = "",
+    val media: List<MediaRefDto> = emptyList(),
 )
 
 @Serializable
