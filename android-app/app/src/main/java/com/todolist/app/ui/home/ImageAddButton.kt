@@ -3,6 +3,7 @@ package com.todolist.app.ui.home
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -17,9 +18,17 @@ import com.todolist.app.R
 @Composable
 fun ImageAddButton(
     onClick: () -> Unit,
+    sheetOpen: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val desc = stringResource(R.string.content_desc_add_image)
+    val desc =
+        stringResource(
+            if (sheetOpen) {
+                R.string.content_desc_close_attachment_sheet
+            } else {
+                R.string.content_desc_add_image
+            },
+        )
     IconButton(
         onClick = onClick,
         modifier =
@@ -28,10 +37,13 @@ fun ImageAddButton(
             },
     ) {
         Icon(
-            imageVector = Icons.Filled.Add,
+            imageVector = if (sheetOpen) Icons.Filled.Close else Icons.Filled.Add,
             contentDescription = null,
             modifier = Modifier.size(28.dp),
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
+            tint =
+                MaterialTheme.colorScheme.onSurface.copy(
+                    alpha = if (sheetOpen) 0.55f else 0.16f,
+                ),
         )
     }
 }

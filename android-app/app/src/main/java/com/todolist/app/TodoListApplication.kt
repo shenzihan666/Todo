@@ -44,7 +44,10 @@ class TodoListApplication : Application() {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 if (modelClass.isAssignableFrom(AuthViewModel::class.java)) {
-                    return AuthViewModel(container.authRepository) as T
+                    return AuthViewModel(
+                        application = this@TodoListApplication,
+                        authRepository = container.authRepository,
+                    ) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
             }

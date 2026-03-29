@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.todolist.app.R
 import com.todolist.app.TodoListApplication
+import com.todolist.app.domain.model.HealthFailureReason
 import com.todolist.app.ui.components.TodoListAppBar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +62,25 @@ fun SettingsRoute(
         validationError = validationError,
         showNavigationBack = showNavigationBack,
     )
+}
+
+@Composable
+private fun healthFailureMessage(reason: HealthFailureReason): String = when (reason) {
+    is HealthFailureReason.BadServerStatus ->
+        stringResource(R.string.health_error_bad_status, reason.status)
+    HealthFailureReason.CannotConnect -> stringResource(R.string.health_error_cannot_connect)
+    HealthFailureReason.Timeout -> stringResource(R.string.health_error_timeout)
+    is HealthFailureReason.UnknownHost -> {
+        val h = reason.host.trim()
+        if (h.isEmpty()) {
+            stringResource(R.string.health_error_unknown_host_generic)
+        } else {
+            stringResource(R.string.health_error_unknown_host, h)
+        }
+    }
+    is HealthFailureReason.Generic ->
+        reason.message?.takeIf { it.isNotBlank() }
+            ?: stringResource(R.string.health_error_unknown)
 }
 
 @Composable
@@ -131,7 +151,7 @@ private fun SettingsFormContent(
             ConnectionUiState.Connected -> stringResource(R.string.status_connected)
             is ConnectionUiState.Failed -> stringResource(
                 R.string.status_failed,
-                connectionState.reason,
+                healthFailureMessage(connectionState.reason),
             )
         }
         val statusColor = when (connectionState) {

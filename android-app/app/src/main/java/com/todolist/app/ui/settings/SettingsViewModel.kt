@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.data.repository.AuthRepository
 import com.todolist.app.domain.model.HealthCheckResult
+import com.todolist.app.domain.model.HealthFailureReason
 import com.todolist.app.domain.repository.HealthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -45,7 +46,7 @@ sealed interface ConnectionUiState {
     data object Idle : ConnectionUiState
     data object Checking : ConnectionUiState
     data object Connected : ConnectionUiState
-    data class Failed(val reason: String) : ConnectionUiState
+    data class Failed(val reason: HealthFailureReason) : ConnectionUiState
 }
 
 class SettingsViewModel(

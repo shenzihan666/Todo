@@ -33,7 +33,7 @@ data class ChatMessage(
     val text: String,
     val isUser: Boolean,
     val isPending: Boolean = false,
-    /** Voice agent SSE reply: show typewriter + 处理中/处理完成 under the bubble. */
+    /** Voice agent SSE reply: show typewriter + processing/done status under the bubble. */
     val showAgentStatusRow: Boolean = false,
 )
 
@@ -162,6 +162,9 @@ class SpeechViewModel(
             for (msg in sessionControl) {
                 when (msg) {
                     SessionMsg.Start -> {
+                        // Clear any stale session (Listening/Processing/Error) so startSession
+                        // does not no-op — otherwise the UI can get stuck until a tab switch.
+                        transcriber.cancelSession()
                         val ip = userPreferences.serverIp.first()
                         if (ip.isEmpty()) {
                             _errorMessage.value =
@@ -214,6 +217,13 @@ class SpeechViewModel(
 
     fun onHoldCancel() {
         sessionControl.trySend(SessionMsg.Cancel)
+    }
+
+    /** Call when Home tab is left so a half-finished gesture/session cannot strand the transcriber. */
+    fun onHomeLeave() {
+        viewModelScope.launch {
+            transcriber.cancelSession()
+        }
     }
 
     fun onImagesPicked(uris: List<Uri>) {

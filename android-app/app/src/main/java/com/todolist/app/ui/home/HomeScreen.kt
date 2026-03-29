@@ -2,6 +2,8 @@ package com.todolist.app.ui.home
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,9 +36,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
+import com.todolist.app.R
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.io.File
 
 @Composable
 fun HomeContent(
@@ -58,12 +65,63 @@ fun HomeContent(
             permissionGranted = granted
         }
 
+    var attachmentSheetVisible by remember { mutableStateOf(false) }
+
+    var readImagesGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                readImagePermission(),
+            ) == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    val readImagesLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            readImagesGranted = granted
+        }
+
     val pickImages =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 9),
         ) { uris ->
             if (uris.isNotEmpty()) {
                 speechViewModel.onImagesPicked(uris)
+                attachmentSheetVisible = false
+            }
+        }
+
+    var captureUri by remember { mutableStateOf<Uri?>(null) }
+    val takePicture =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.TakePicture(),
+        ) { success ->
+            if (success && captureUri != null) {
+                speechViewModel.onImagesPicked(listOf(captureUri!!))
+                attachmentSheetVisible = false
+            }
+        }
+
+    fun launchCameraCapture() {
+        val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+        val file = File(dir, "capture_${System.currentTimeMillis()}.jpg")
+        val uri =
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file,
+            )
+        captureUri = uri
+        takePicture.launch(uri)
+    }
+
+    val cameraPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            if (granted) {
+                launchCameraCapture()
             }
         }
 
@@ -77,6 +135,12 @@ fun HomeContent(
     val pendingImageUris by speechViewModel.pendingImageUris.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
+
+    DisposableEffect(Unit) {
+        onDispose {
+            speechViewModel.onHomeLeave()
+        }
+    }
 
     val lastAssistantTextLen = messages.lastOrNull { !it.isUser }?.text?.length ?: 0
     LaunchedEffect(
@@ -101,9 +165,22 @@ fun HomeContent(
         }
     }
 
+    LaunchedEffect(attachmentSheetVisible) {
+        if (attachmentSheetVisible) {
+            readImagesGranted =
+                ContextCompat.checkSelfPermission(
+                    context,
+                    readImagePermission(),
+                ) == PackageManager.PERMISSION_GRANTED
+            if (!readImagesGranted) {
+                readImagesLauncher.launch(readImagePermission())
+            }
+        }
+    }
+
     // Full-height list with mic overlaid at the bottom (transparent) so messages use the whole
     // area; bottom padding keeps the last bubble scrollable above the mic / + controls.
-    val micOverlayBottomInset = 240.dp
+    val micOverlayBottomInset = if (attachmentSheetVisible) 520.dp else 240.dp
 
     Box(
         modifier =
@@ -232,13 +309,8 @@ fun HomeContent(
                     modifier = Modifier.align(Alignment.Center),
                 )
                 ImageAddButton(
-                    onClick = {
-                        pickImages.launch(
-                            PickVisualMediaRequest(
-                                ActivityResultContracts.PickVisualMedia.ImageOnly,
-                            ),
-                        )
-                    },
+                    sheetOpen = attachmentSheetVisible,
+                    onClick = { attachmentSheetVisible = !attachmentSheetVisible },
                     modifier =
                         Modifier
                             .align(Alignment.Center)
@@ -253,6 +325,33 @@ fun HomeContent(
         }
     }
 
+    if (attachmentSheetVisible) {
+        AttachmentImageSheet(
+            onDismiss = { attachmentSheetVisible = false },
+            onAlbumClick = {
+                pickImages.launch(
+                    PickVisualMediaRequest(
+                        ActivityResultContracts.PickVisualMedia.ImageOnly,
+                    ),
+                )
+            },
+            onCameraClick = {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    launchCameraCapture()
+                } else {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
+            },
+            onRecentImageClick = { uri ->
+                speechViewModel.onImagesPicked(listOf(uri))
+                attachmentSheetVisible = false
+            },
+            canReadGallery = readImagesGranted,
+        )
+    }
+
     if (pendingConfirmation != null) {
         ConfirmActionsSheet(
             pending = pendingConfirmation!!,
@@ -262,6 +361,13 @@ fun HomeContent(
         )
     }
 }
+
+private fun readImagePermission(): String =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_IMAGES
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
 
 @Composable
 fun ChatBubble(
@@ -316,7 +422,12 @@ fun ChatBubble(
                     )
                 else ->
                     Text(
-                        text = if (isPending && !useTypewriter) "$text..." else text,
+                        text =
+                            if (isPending && !useTypewriter) {
+                                stringResource(R.string.chat_message_pending, text)
+                            } else {
+                                text
+                            },
                         color = if (isPending) textColor.copy(alpha = 0.7f) else textColor,
                         style = MaterialTheme.typography.bodyLarge,
                     )
