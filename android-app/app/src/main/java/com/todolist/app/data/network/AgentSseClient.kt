@@ -5,10 +5,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
@@ -24,15 +28,37 @@ sealed class AgentSseEvent {
 
     data class ToolResult(val tool: String, val content: String) : AgentSseEvent()
 
+    data class ProposedActions(val actions: List<ProposedAction>) : AgentSseEvent()
+
     data object Done : AgentSseEvent()
 
     data class Error(val message: String) : AgentSseEvent()
 }
 
 @Serializable
+data class ProposedAction(
+    val action: String,
+    val args: JsonObject = JsonObject(emptyMap()),
+    @SerialName("display_title") val displayTitle: String,
+    @SerialName("display_scheduled_at") val displayScheduledAt: String? = null,
+)
+
+@Serializable
+data class ExecuteActionsResponseBody(
+    val executed: Int,
+    val results: List<String>,
+)
+
+@Serializable
 private data class AgentChatRequestBody(
     val message: String,
     val media_ids: List<String> = emptyList(),
+    val require_confirmation: Boolean = false,
+)
+
+@Serializable
+private data class ExecuteActionsRequestBody(
+    val actions: List<ProposedAction>,
 )
 
 class AgentSseClient(
@@ -42,13 +68,17 @@ class AgentSseClient(
     fun streamChat(
         baseUrl: String,
         message: String,
+        requireConfirmation: Boolean = true,
     ): Flow<AgentSseEvent> =
         flow {
             val url = baseUrl.trim().trimEnd('/') + "/api/v1/agent/chat"
             val bodyJson =
                 json.encodeToString(
                     AgentChatRequestBody.serializer(),
-                    AgentChatRequestBody(message = message),
+                    AgentChatRequestBody(
+                        message = message,
+                        require_confirmation = requireConfirmation,
+                    ),
                 )
             val request =
                 Request.Builder()
@@ -72,6 +102,33 @@ class AgentSseClient(
                 response.close()
             }
         }.flowOn(Dispatchers.IO)
+
+    suspend fun executeActions(
+        baseUrl: String,
+        actions: List<ProposedAction>,
+    ): Result<ExecuteActionsResponseBody> =
+        withContext(Dispatchers.IO) {
+            val url = baseUrl.trim().trimEnd('/') + "/api/v1/agent/execute-actions"
+            val bodyJson =
+                json.encodeToString(
+                    ExecuteActionsRequestBody.serializer(),
+                    ExecuteActionsRequestBody(actions = actions),
+                )
+            val request =
+                Request.Builder()
+                    .url(url)
+                    .addHeader("Accept", "application/json")
+                    .post(bodyJson.toRequestBody("application/json".toMediaType()))
+                    .build()
+            runCatching {
+                val response = okHttpClient.newCall(request).execute()
+                val bodyStr = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    error("HTTP ${response.code}: $bodyStr")
+                }
+                json.decodeFromString(ExecuteActionsResponseBody.serializer(), bodyStr)
+            }
+        }
 
     private suspend fun consumeSse(
         out: FlowCollector<AgentSseEvent>,
@@ -97,6 +154,7 @@ class AgentSseClient(
                     val content = obj?.get("content")?.jsonPrimitive?.contentOrNull ?: data
                     out.emit(AgentSseEvent.ToolResult(tool, content))
                 }
+                "proposed_actions" -> parseProposedActions(out, data)
                 "done" -> out.emit(AgentSseEvent.Done)
                 "error" -> out.emit(AgentSseEvent.Error(parseErrorPayload(data)))
                 else -> {}
@@ -118,6 +176,23 @@ class AgentSseClient(
             }
         }
         flush()
+    }
+
+    private suspend fun parseProposedActions(
+        out: FlowCollector<AgentSseEvent>,
+        raw: String,
+    ) {
+        val obj = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return
+        val arr = obj["actions"]?.jsonArray ?: return
+        val actions =
+            arr.mapNotNull { el ->
+                runCatching {
+                    json.decodeFromJsonElement(ProposedAction.serializer(), el)
+                }.getOrNull()
+            }
+        if (actions.isNotEmpty()) {
+            out.emit(AgentSseEvent.ProposedActions(actions))
+        }
     }
 
     private fun parseTokenPayload(raw: String): String {

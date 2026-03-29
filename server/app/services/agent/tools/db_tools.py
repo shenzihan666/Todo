@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 
@@ -11,6 +12,8 @@ from app.repositories.todo_repository import TodoRepository
 from app.schemas.todo import TodoCreate, TodoUpdate
 
 logger = structlog.get_logger(__name__)
+
+_WEEKDAYS_CN = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
 
 
 def _parse_scheduled_at_iso(value: str | None) -> datetime | None:
@@ -31,17 +34,43 @@ def _parse_scheduled_at_iso(value: str | None) -> datetime | None:
     return dt.astimezone(UTC)
 
 
+def _format_display_scheduled_at(dt: datetime | None) -> str | None:
+    """Short Chinese weekday + HH:MM for confirmation UI."""
+    if dt is None:
+        return None
+    wd = _WEEKDAYS_CN[dt.weekday()]
+    return f"{wd} {dt.strftime('%H:%M')}"
+
+
 def _format_todo_line(todo: Todo) -> str:
     sched = todo.scheduled_at.isoformat() if todo.scheduled_at else "(no time)"
     status = "done" if todo.completed else "pending"
     return f"  #{todo.id} [{status}] {todo.title} — scheduled: {sched}"
 
 
-def build_db_tools(tenant_id: uuid.UUID) -> list:
+def _serialize_update_args(todo_id: int, payload: dict) -> dict[str, Any]:
+    """JSON-serializable args for execute-actions."""
+    out: dict[str, Any] = {"todo_id": todo_id}
+    for k, v in payload.items():
+        if k == "scheduled_at" and isinstance(v, datetime):
+            out[k] = v.isoformat()
+        else:
+            out[k] = v
+    return out
+
+
+def build_db_tools(
+    tenant_id: uuid.UUID,
+    *,
+    proposed_actions: list[dict[str, Any]] | None = None,
+) -> list:
     """Return DB-writing tool callables bound to *tenant_id*.
 
     Each tool manages its own DB session and commits independently so that
     writes are durable regardless of how the agent streaming lifecycle ends.
+
+    When *proposed_actions* is a list (dry-run / confirmation mode), write tools
+    append ``ProposedActionItem``-shaped dicts and do not commit.
     """
 
     async def list_todos(
@@ -115,6 +144,29 @@ def build_db_tools(tenant_id: uuid.UUID) -> list:
             Confirmation message with the created todo's id and title.
         """
         parsed = _parse_scheduled_at_iso(scheduled_at)
+        if proposed_actions is not None:
+            proposed_actions.append(
+                {
+                    "action": "create",
+                    "args": {
+                        "title": title,
+                        "description": description or "",
+                        "scheduled_at": scheduled_at,
+                    },
+                    "display_title": title,
+                    "display_scheduled_at": (
+                        _format_display_scheduled_at(parsed) if parsed else None
+                    ),
+                },
+            )
+            logger.info(
+                "agent_tool_call_dry",
+                tool="create_todo",
+                tenant_id=str(tenant_id),
+                title=title,
+            )
+            return f'(dry-run) Would create todo: "{title}"'
+
         async with SessionLocal() as session:
             repo = TodoRepository(session, tenant_id)
             todo = await repo.create(
@@ -166,10 +218,10 @@ def build_db_tools(tenant_id: uuid.UUID) -> list:
             if str(scheduled_at).strip() == "":
                 payload["scheduled_at"] = None
             else:
-                parsed = _parse_scheduled_at_iso(scheduled_at)
-                if parsed is None:
+                parsed_sa = _parse_scheduled_at_iso(scheduled_at)
+                if parsed_sa is None:
                     return "Invalid scheduled_at: use timezone-aware ISO 8601, or \"\" to clear."
-                payload["scheduled_at"] = parsed
+                payload["scheduled_at"] = parsed_sa
         if not payload:
             return "No changes: pass at least one of title, description, completed, scheduled_at."
 
@@ -179,6 +231,30 @@ def build_db_tools(tenant_id: uuid.UUID) -> list:
             todo = await repo.get_by_id(todo_id)
             if todo is None:
                 return f"No todo with id {todo_id}."
+
+            if proposed_actions is not None:
+                display_sched = (
+                    _format_display_scheduled_at(todo.scheduled_at) if todo.scheduled_at else None
+                )
+                proposed_actions.append(
+                    {
+                        "action": "update",
+                        "args": _serialize_update_args(
+                            todo_id,
+                            data.model_dump(exclude_unset=True),
+                        ),
+                        "display_title": title if title is not None else todo.title,
+                        "display_scheduled_at": display_sched,
+                    },
+                )
+                logger.info(
+                    "agent_tool_call_dry",
+                    tool="update_todo",
+                    tenant_id=str(tenant_id),
+                    todo_id=str(todo_id),
+                )
+                return f'(dry-run) Would update todo #{todo_id}: "{todo.title}"'
+
             await repo.update(todo, data)
             await session.commit()
             logger.info(
@@ -198,6 +274,27 @@ def build_db_tools(tenant_id: uuid.UUID) -> list:
             if todo is None:
                 return f"No todo with id {todo_id}."
             title = todo.title
+            display_sched = (
+                _format_display_scheduled_at(todo.scheduled_at) if todo.scheduled_at else None
+            )
+
+            if proposed_actions is not None:
+                proposed_actions.append(
+                    {
+                        "action": "delete",
+                        "args": {"todo_id": todo_id},
+                        "display_title": title,
+                        "display_scheduled_at": display_sched,
+                    },
+                )
+                logger.info(
+                    "agent_tool_call_dry",
+                    tool="delete_todo",
+                    tenant_id=str(tenant_id),
+                    todo_id=str(todo_id),
+                )
+                return f'(dry-run) Would delete todo #{todo_id}: "{title}"'
+
             await repo.delete(todo)
             await session.commit()
             logger.info(

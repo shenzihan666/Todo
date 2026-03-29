@@ -4,7 +4,7 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -16,15 +16,20 @@ from app.api.deps import get_tenant_id
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.exceptions import NotFoundError
+from app.repositories.todo_repository import TodoRepository
 from app.schemas.agent import (
     AgentChatRequest,
     ConversationOut,
+    ExecuteActionsRequest,
+    ExecuteActionsResponse,
     MemoryItemOut,
     MemoryPutBody,
 )
+from app.schemas.todo import TodoCreate, TodoUpdate
 from app.services.agent.agent_factory import build_agent
 from app.services.agent.memory_infra import memory_infra_initialized
 from app.services.agent.memory_provider import StoreMemoryProvider
+from app.services.agent.tools.db_tools import _parse_scheduled_at_iso
 from app.services.conversation_service import ConversationService
 
 logger = structlog.get_logger(__name__)
@@ -60,14 +65,43 @@ def _message_content_as_text(content: object) -> str:
     return str(content)
 
 
+def _todo_update_from_execute_args(payload: dict[str, Any]) -> TodoUpdate:
+    """Build ``TodoUpdate`` from ``/execute-actions`` JSON args (no ``todo_id``)."""
+    cleaned: dict[str, Any] = {}
+    for key in ("title", "description", "completed", "scheduled_at"):
+        if key not in payload:
+            continue
+        val = payload[key]
+        if key == "scheduled_at":
+            if val is None or (isinstance(val, str) and not str(val).strip()):
+                cleaned[key] = None
+            else:
+                parsed = _parse_scheduled_at_iso(str(val))
+                if parsed is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid scheduled_at for update.",
+                    )
+                cleaned[key] = parsed
+        elif key == "completed":
+            cleaned[key] = bool(val)
+        else:
+            cleaned[key] = val
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+    return TodoUpdate(**cleaned)
+
+
 async def _stream_agent(
     tenant_id: uuid.UUID,
     message: str,
     *,
     thread_id: str | None,
+    require_confirmation: bool = False,
 ) -> AsyncIterator[str]:
     """Run the agent and yield SSE-formatted chunks."""
-    agent = build_agent(tenant_id)
+    proposed: list[dict[str, Any]] | None = [] if require_confirmation else None
+    agent = build_agent(tenant_id, proposed_actions=proposed)
     full_reply_parts: list[str] = []
 
     stream_config: dict | None = None
@@ -125,6 +159,8 @@ async def _stream_agent(
             reply_char_len=len(full_text),
             reply_text=full_text,
         )
+        if proposed:
+            yield _sse("proposed_actions", {"actions": proposed})
         yield _sse("done", "")
 
     except Exception:
@@ -156,13 +192,81 @@ async def agent_chat(
         resolved_thread = str(tid)
 
     return StreamingResponse(
-        _stream_agent(tenant_id, body.message, thread_id=resolved_thread),
+        _stream_agent(
+            tenant_id,
+            body.message,
+            thread_id=resolved_thread,
+            require_confirmation=body.require_confirmation,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/execute-actions", response_model=ExecuteActionsResponse)
+async def execute_agent_actions(
+    body: ExecuteActionsRequest,
+    tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ExecuteActionsResponse:
+    """Apply confirmed todo operations from a prior dry-run agent turn."""
+    if not body.actions:
+        return ExecuteActionsResponse(executed=0, results=[])
+
+    repo = TodoRepository(session, tenant_id)
+    results: list[str] = []
+    for item in body.actions:
+        if item.action == "create":
+            a = item.args
+            title = str(a.get("title", "")).strip()
+            if not title:
+                raise HTTPException(status_code=400, detail="create action missing title")
+            raw_desc = a.get("description")
+            if raw_desc is None or (isinstance(raw_desc, str) and not str(raw_desc).strip()):
+                description = None
+            else:
+                description = str(raw_desc)
+            sa_raw = a.get("scheduled_at")
+            scheduled_at = _parse_scheduled_at_iso(str(sa_raw)) if sa_raw else None
+            todo = await repo.create(
+                TodoCreate(title=title, description=description, scheduled_at=scheduled_at),
+            )
+            await session.commit()
+            results.append(f'Created todo #{todo.id}: "{todo.title}"')
+        elif item.action == "update":
+            a = item.args
+            todo_id_raw = a.get("todo_id")
+            if todo_id_raw is None:
+                raise HTTPException(status_code=400, detail="update action missing todo_id")
+            todo_id = int(todo_id_raw)
+            payload = {k: v for k, v in a.items() if k != "todo_id"}
+            todo = await repo.get_by_id(todo_id)
+            if todo is None:
+                raise HTTPException(status_code=404, detail=f"No todo with id {todo_id}.")
+            tu = _todo_update_from_execute_args(payload)
+            updated = await repo.update(todo, tu)
+            await session.commit()
+            results.append(f'Updated todo #{updated.id}: "{updated.title}"')
+        elif item.action == "delete":
+            a = item.args
+            todo_id_raw = a.get("todo_id")
+            if todo_id_raw is None:
+                raise HTTPException(status_code=400, detail="delete action missing todo_id")
+            todo_id = int(todo_id_raw)
+            todo = await repo.get_by_id(todo_id)
+            if todo is None:
+                raise HTTPException(status_code=404, detail=f"No todo with id {todo_id}.")
+            title = todo.title
+            await repo.delete(todo)
+            await session.commit()
+            results.append(f'Deleted todo #{todo_id}: "{title}"')
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown action {item.action!r}")
+
+    return ExecuteActionsResponse(executed=len(results), results=results)
 
 
 @router.get("/threads", response_model=list[ConversationOut])

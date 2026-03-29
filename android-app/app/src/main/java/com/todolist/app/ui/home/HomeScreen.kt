@@ -73,6 +73,7 @@ fun HomeContent(
     val isProcessing by speechViewModel.isProcessing.collectAsStateWithLifecycle()
     val audioLevel by speechViewModel.audioLevel.collectAsStateWithLifecycle()
     val errorMessage by speechViewModel.errorMessage.collectAsStateWithLifecycle()
+    val pendingConfirmation by speechViewModel.pendingConfirmation.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
 
@@ -234,6 +235,15 @@ fun HomeContent(
                         ),
             )
         }
+    }
+
+    if (pendingConfirmation != null) {
+        ConfirmActionsSheet(
+            pending = pendingConfirmation!!,
+            onDismiss = { speechViewModel.cancelPendingConfirmation() },
+            onConfirm = { selected -> speechViewModel.confirmPendingActions(selected) },
+            onCancel = { speechViewModel.cancelPendingConfirmation() },
+        )
     }
 }
 

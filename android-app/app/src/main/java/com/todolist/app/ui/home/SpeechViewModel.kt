@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.todolist.app.R
 import com.todolist.app.data.network.AgentSseClient
 import com.todolist.app.data.network.AgentSseEvent
+import com.todolist.app.data.network.ProposedAction
 import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.data.repository.MediaRepositoryImpl
 import com.todolist.app.domain.speech.SpeechTranscriber
@@ -33,6 +34,12 @@ data class ChatMessage(
     val isPending: Boolean = false,
     /** Voice agent SSE reply: show typewriter + 处理中/处理完成 under the bubble. */
     val showAgentStatusRow: Boolean = false,
+)
+
+/** Pending agent write operations waiting for user confirmation (sheet). */
+data class PendingConfirmation(
+    val assistantMessageId: String,
+    val actions: List<ProposedAction>,
 )
 
 class SpeechViewModel(
@@ -63,6 +70,9 @@ class SpeechViewModel(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _pendingConfirmation = MutableStateFlow<PendingConfirmation?>(null)
+    val pendingConfirmation: StateFlow<PendingConfirmation?> = _pendingConfirmation.asStateFlow()
 
     private var agentJob: Job? = null
 
@@ -133,6 +143,7 @@ class SpeechViewModel(
 
     fun onHoldStart() {
         agentJob?.cancel()
+        _pendingConfirmation.value?.let { clearPendingConfirmation(it.assistantMessageId) }
         sessionControl.trySend(SessionMsg.Start)
     }
 
@@ -206,6 +217,47 @@ class SpeechViewModel(
             }
     }
 
+    fun confirmPendingActions(selectedIndices: Set<Int>) {
+        val pending = _pendingConfirmation.value ?: return
+        val assistantId = pending.assistantMessageId
+        viewModelScope.launch {
+            val selected =
+                selectedIndices.mapNotNull { idx -> pending.actions.getOrNull(idx) }
+            if (selected.isEmpty()) {
+                clearPendingConfirmation(assistantId)
+                return@launch
+            }
+            val ip = userPreferences.serverIp.first()
+            if (ip.isEmpty()) {
+                _errorMessage.value =
+                    getApplication<Application>().getString(R.string.voice_error_no_server)
+                return@launch
+            }
+            val base = buildServerBaseUrl(ip)
+            _errorMessage.value = null
+            agentSseClient.executeActions(base, selected).fold(
+                onSuccess = {
+                    clearPendingConfirmation(assistantId)
+                },
+                onFailure = { e ->
+                    _errorMessage.value =
+                        e.message?.takeIf { it.isNotBlank() }
+                            ?: getApplication<Application>().getString(R.string.agent_chat_error)
+                },
+            )
+        }
+    }
+
+    fun cancelPendingConfirmation() {
+        val id = _pendingConfirmation.value?.assistantMessageId ?: return
+        clearPendingConfirmation(id)
+    }
+
+    private fun clearPendingConfirmation(assistantMessageId: String) {
+        _pendingConfirmation.value = null
+        markAssistantFinished(assistantMessageId)
+    }
+
     private suspend fun runAgentChat(
         userText: String,
         assistantId: String,
@@ -225,9 +277,10 @@ class SpeechViewModel(
         }
         _errorMessage.value = null
         val base = buildServerBaseUrl(ip)
+        var awaitingConfirmation = false
         try {
             try {
-                agentSseClient.streamChat(base, userText).collect { ev ->
+                agentSseClient.streamChat(base, userText, requireConfirmation = true).collect { ev ->
                     when (ev) {
                         is AgentSseEvent.Token -> {
                             _messages.value =
@@ -239,9 +292,17 @@ class SpeechViewModel(
                                     }
                                 }
                         }
-                        is AgentSseEvent.Done -> {
-                            markAssistantFinished(assistantId)
+                        is AgentSseEvent.ProposedActions -> {
+                            if (ev.actions.isNotEmpty()) {
+                                awaitingConfirmation = true
+                                _pendingConfirmation.value =
+                                    PendingConfirmation(
+                                        assistantMessageId = assistantId,
+                                        actions = ev.actions,
+                                    )
+                            }
                         }
+                        is AgentSseEvent.Done -> {}
                         is AgentSseEvent.Error -> {
                             _errorMessage.value = ev.message
                             _messages.value =
@@ -261,10 +322,13 @@ class SpeechViewModel(
                     }
                 }
             } finally {
-                markAssistantFinished(assistantId)
+                if (!awaitingConfirmation) {
+                    markAssistantFinished(assistantId)
+                }
             }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
+            _pendingConfirmation.value = null
             _errorMessage.value =
                 e.message?.takeIf { it.isNotBlank() }
                     ?: getApplication<Application>().getString(R.string.agent_chat_error)

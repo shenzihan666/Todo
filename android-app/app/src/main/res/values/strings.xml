@@ -38,6 +38,12 @@
     <string name="agent_chat_error">Could not load reply.</string>
     <string name="agent_status_processing">处理中</string>
     <string name="agent_status_completed">处理完成</string>
+    <string name="confirm_actions_title">确认 %d 项操作</string>
+    <string name="action_create">创建</string>
+    <string name="action_update">更新</string>
+    <string name="action_delete">删除</string>
+    <string name="confirm_actions_cancel">取消</string>
+    <string name="confirm_actions_confirm">确认</string>
     <string name="settings">Settings</string>
     <string name="content_desc_open_settings">Open settings</string>
     <string name="content_desc_navigate_back">Navigate back</string>

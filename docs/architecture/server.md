@@ -25,10 +25,11 @@ app/api/v1/endpoints/ → schemas/ → services/ → repositories/ → models/
 
 ## Agent（Deep Agents + LangGraph）
 
-- **对话与 SSE**：`POST /api/v1/agent/chat`，请求体可含 `thread_id`（UUID）。省略则新建线程；服务端首条 SSE 事件为 `event: thread`，`data` 内含 `thread_id` 供客户端续聊。响应仍为 SSE（`token` / `tool_call` / `tool_result` / `done` 等）。
+- **对话与 SSE**：`POST /api/v1/agent/chat`，请求体可含 `thread_id`（UUID）、`require_confirmation`（默认 `false`）。省略 `thread_id` 则新建线程；服务端首条 SSE 事件为 `event: thread`，`data` 内含 `thread_id` 供客户端续聊。响应为 SSE（`token` / `tool_call` / `tool_result` / `proposed_actions` / `done` / `error` 等）。
+- **确认后再写入**：`require_confirmation=true` 时，`create_todo` / `update_todo` / `delete_todo` 不提交数据库，仅在流结束前追加 `event: proposed_actions`，`data` 为 `{"actions":[...]}`（每项含 `action`、`args`、`display_title`、`display_scheduled_at`）。客户端确认后调用 **`POST /api/v1/agent/execute-actions`**（JWT），请求体 `{"actions":[...]}`，与上述项同形，服务端按序执行并返回 `executed` 与 `results`。`list_todos` 在确认模式下仍真实查询，便于 Agent 推理。
 - **会话元数据**：业务表 `conversations`（`tenant_id` 隔离）登记线程；**多轮消息与图状态**由 LangGraph **`AsyncPostgresSaver`** 写入 PostgreSQL（`checkpoint_*` 等表，由 `langgraph-checkpoint-postgres` 在启动时 `setup()` 创建/迁移）。
 - **长期记忆**：Deep Agents `CompositeBackend`：`StateBackend`（线程内草稿）+ `StoreBackend` 路由到路径前缀 `/memories/`；底层为 LangGraph **`AsyncPostgresStore`**（`store` 相关表，启动时 `setup()`）。租户隔离通过 `StoreBackend` 的 **namespace**（`(str(tenant_id), "filesystem")`）实现。
 - **可插拔**：`MemoryProvider` / `StoreMemoryProvider`（`services/agent/memory_provider.py`）为后续 RAG（向量检索）预留 `retrieve(query)` 等接口；关闭记忆时设 `AGENT_MEMORY_ENABLED=false`，Agent 退化为无 checkpoint/store 的单轮行为。
-- **Todo 工具**（租户隔离）：`services/agent/tools/db_tools.py` 暴露 `list_todos`（可选 `scheduled_at` 区间）、`create_todo`、`update_todo`、`delete_todo`；模型宜先 `list_todos` 再按 id 更新/删除。批量删除为多次 `delete_todo`（后续可再加批量 tool）。
+- **Todo 工具**（租户隔离）：`services/agent/tools/db_tools.py` 暴露 `list_todos`（可选 `scheduled_at` 区间）、`create_todo`、`update_todo`、`delete_todo`；模型宜先 `list_todos` 再按 id 更新/删除。批量删除为多次 `delete_todo`（后续可再加批量 tool）。传入可变的 `proposed_actions` 列表时进入干跑模式，写操作只追加待确认项、不 `commit`。
 
 相关实现：`services/agent/agent_factory.py`、`memory_infra.py`、`memory_backend.py`、`conversation_service.py`。

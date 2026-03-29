@@ -30,17 +30,24 @@ def _get_system_prompt() -> str:
     return build_agent_system_prompt(memory_enabled=settings.agent_memory_enabled)
 
 
-def build_agent(tenant_id: uuid.UUID):
+def build_agent(
+    tenant_id: uuid.UUID,
+    *,
+    proposed_actions: list | None = None,
+):
     """Build a DeepAgent for this tenant.
 
     When ``agent_memory_enabled`` and LangGraph infra are up, the graph is
     checkpointed (``thread_id`` in ``config["configurable"]``) and ``/memories/``
     is backed by the LangGraph store.
+
+    Pass a mutable ``proposed_actions`` list (dry-run mode) so write tools record
+    operations without committing; the client confirms via ``/execute-actions``.
     """
     llm = _build_llm()
     prompt = _get_system_prompt()
 
-    tools = build_db_tools(tenant_id)
+    tools = build_db_tools(tenant_id, proposed_actions=proposed_actions)
     if settings.tavily_api_key:
         tools.append(build_search_tool(settings.tavily_api_key))
 
