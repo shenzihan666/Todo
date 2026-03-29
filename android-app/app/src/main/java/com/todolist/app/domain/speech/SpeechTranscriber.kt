@@ -26,5 +26,8 @@ interface SpeechTranscriber {
 
     suspend fun stopSession()
 
+    /** Abort without final transcript; clears text and returns to [TranscriberState.Idle]. */
+    suspend fun cancelSession()
+
     fun destroy()
 }

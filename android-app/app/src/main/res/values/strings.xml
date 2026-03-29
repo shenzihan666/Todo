@@ -27,6 +27,8 @@
     <string name="bills_title">Bills</string>
     <string name="bills_placeholder">Your bills will appear here.</string>
     <string name="voice_input_hold_desc">Hold to speak</string>
+    <string name="voice_cancel_hint">Slide up to cancel</string>
+    <string name="voice_cancel_release">Release to cancel</string>
     <string name="content_desc_add_image">Add image</string>
     <string name="image_upload_error_not_signed_in">Sign in to upload images.</string>
     <string name="image_upload_error">Could not upload image.</string>

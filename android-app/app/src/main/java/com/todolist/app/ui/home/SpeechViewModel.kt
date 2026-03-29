@@ -122,6 +122,7 @@ class SpeechViewModel(
                         transcriber.startSession(buildSpeechWebSocketUrl(ip))
                     }
                     SessionMsg.Stop -> transcriber.stopSession()
+                    SessionMsg.Cancel -> transcriber.cancelSession()
                 }
             }
         }
@@ -134,6 +135,10 @@ class SpeechViewModel(
 
     fun onHoldEnd() {
         sessionControl.trySend(SessionMsg.Stop)
+    }
+
+    fun onHoldCancel() {
+        sessionControl.trySend(SessionMsg.Cancel)
     }
 
     fun onImagePicked(uri: Uri) {
@@ -277,6 +282,7 @@ class SpeechViewModel(
     private sealed interface SessionMsg {
         data object Start : SessionMsg
         data object Stop : SessionMsg
+        data object Cancel : SessionMsg
     }
 
     override fun onCleared() {

@@ -40,7 +40,7 @@
 
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
-| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间 | MVVM、Compose、WebSocket、Speech、Schedule、scheduled_at、 flavors |
+| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、Schedule、scheduled_at、 flavors |
 
 ---
 

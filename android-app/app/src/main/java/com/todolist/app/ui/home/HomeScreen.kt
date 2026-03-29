@@ -183,6 +183,7 @@ fun HomeContent(
                 hasPermission = permissionGranted,
                 onHoldStart = { speechViewModel.onHoldStart() },
                 onHoldEnd = { speechViewModel.onHoldEnd() },
+                onCancel = { speechViewModel.onHoldCancel() },
                 onRequestPermission = {
                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 },
