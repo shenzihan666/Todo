@@ -22,6 +22,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import configure_logging
 from app.core.middleware import AccessLogMiddleware, ContextMiddleware
+from app.services.agent.memory_infra import init_memory_infra, shutdown_memory_infra
 from app.services.transcription.faster_whisper_engine import FasterWhisperEngine
 from app.services.transcription.fun_asr_engine import FunAsrEngine
 
@@ -55,9 +56,13 @@ def create_app() -> FastAPI:
         else:
             engine.load()
         app.state.transcription_engine = engine
+        if settings.agent_memory_enabled:
+            await init_memory_infra(settings.postgres_psycopg_conn_string)
         try:
             yield
         finally:
+            if settings.agent_memory_enabled:
+                await shutdown_memory_infra()
             engine.unload()
 
     app = FastAPI(title="TodoList API", version="0.1.0", lifespan=lifespan)

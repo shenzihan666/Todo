@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     # Web search (Tavily)
     tavily_api_key: str = ""
 
+    # Agent memory (LangGraph checkpoint + store; disable to revert to stateless agent)
+    agent_memory_enabled: bool = True
+    agent_memory_ttl_days: int = 90
+    agent_summarization_enabled: bool = True
+
     @model_validator(mode="after")
     def _assemble_database_url(self) -> "Settings":
         if not self.database_url:
@@ -91,6 +96,16 @@ class Settings(BaseSettings):
             return url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
         if url.startswith("postgresql://"):
             return url
+        return url
+
+    @property
+    def postgres_psycopg_conn_string(self) -> str:
+        """Connection string for LangGraph Postgres checkpointer/store (psycopg, not asyncpg)."""
+        url = self.database_url
+        if url.startswith("postgresql+asyncpg://"):
+            return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        if url.startswith("postgresql+psycopg2://"):
+            return url.replace("postgresql+psycopg2://", "postgresql://", 1)
         return url
 
 

@@ -7,7 +7,9 @@ from deepagents import create_deep_agent
 from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
-from app.services.agent.prompts import DEFAULT_SYSTEM_PROMPT
+from app.services.agent.memory_backend import make_composite_backend_factory
+from app.services.agent.memory_infra import get_checkpointer, get_store, memory_infra_initialized
+from app.services.agent.prompts import build_agent_system_prompt
 from app.services.agent.tools.db_tools import build_db_tools
 from app.services.agent.tools.search_tools import build_search_tool
 
@@ -23,18 +25,17 @@ def _build_llm() -> ChatOpenAI:
 
 
 def _get_system_prompt() -> str:
-    return settings.agent_system_prompt or DEFAULT_SYSTEM_PROMPT
+    if settings.agent_system_prompt:
+        return settings.agent_system_prompt
+    return build_agent_system_prompt(memory_enabled=settings.agent_memory_enabled)
 
 
 def build_agent(tenant_id: uuid.UUID):
-    """Build a stateless DeepAgent for a single request.
+    """Build a DeepAgent for this tenant.
 
-    Returns a compiled LangGraph ``CompiledStateGraph`` ready to ``.invoke()``
-    or ``.stream()``.  Each call creates a lightweight graph — the LLM client
-    is a thin HTTP wrapper, not a model load.
-
-    For stateful migration, add ``checkpointer=<PostgresSaver>`` here and pass
-    ``thread_id`` via ``config["configurable"]`` at call-site.
+    When ``agent_memory_enabled`` and LangGraph infra are up, the graph is
+    checkpointed (``thread_id`` in ``config["configurable"]``) and ``/memories/``
+    is backed by the LangGraph store.
     """
     llm = _build_llm()
     prompt = _get_system_prompt()
@@ -43,11 +44,18 @@ def build_agent(tenant_id: uuid.UUID):
     if settings.tavily_api_key:
         tools.append(build_search_tool(settings.tavily_api_key))
 
+    use_memory = settings.agent_memory_enabled and memory_infra_initialized()
+    checkpointer = get_checkpointer() if use_memory else None
+    store = get_store() if use_memory else None
+    backend = make_composite_backend_factory(tenant_id)
+
     agent = create_deep_agent(
         model=llm,
         tools=tools,
         system_prompt=prompt,
-        # checkpointer=None — stateless; swap in AsyncPostgresSaver for stateful
+        checkpointer=checkpointer,
+        store=store,
+        backend=backend,
     )
 
     logger.debug(
@@ -55,5 +63,6 @@ def build_agent(tenant_id: uuid.UUID):
         tenant_id=str(tenant_id),
         model=settings.agent_llm_model,
         tool_count=len(tools),
+        memory_enabled=use_memory,
     )
     return agent

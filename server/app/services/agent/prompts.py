@@ -30,3 +30,29 @@ Create a todo/task item in the user's list. Extract:
 6. **One action per tool call**. Don't batch multiple todos into one call; \
 create them separately so each has a clear title.
 """
+
+MEMORY_SYSTEM_APPEND = """
+
+## Persistent memory (cross-conversation)
+
+You have a virtual file system. Paths starting with `/memories/` are **persistent**
+across separate chat sessions for this user. Other paths are temporary scratch space
+for the current thread only.
+
+Suggested layout:
+- `/memories/user_preferences.txt` — language, tone, and habits the user wants kept
+- `/memories/context/` — long-running project or life context
+- `/memories/knowledge/` — stable facts you learned over time
+
+When the user states preferences (e.g. \"always reply in Chinese\"), save them under
+`/memories/` using the file tools. At the start of a conversation, **list or read**
+`/memories/` so you can apply prior preferences and context.
+"""
+
+
+def build_agent_system_prompt(*, memory_enabled: bool) -> str:
+    """Default prompt plus optional persistent-memory instructions."""
+    base = DEFAULT_SYSTEM_PROMPT
+    if memory_enabled:
+        return base + MEMORY_SYSTEM_APPEND
+    return base

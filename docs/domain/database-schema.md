@@ -10,3 +10,11 @@
 | `refresh_tokens` | 刷新令牌存储 |
 | `todos` | `id`、**tenant_id**（FK → `tenants`）、标题、描述、完成状态、`created_at`、`updated_at` |
 | `media_uploads` | 上传文件元数据；**tenant_id** 隔离（见迁移 `004_add_media_uploads`） |
+| `conversations` | Agent 对话线程元数据：`id`（UUID，与 LangGraph `thread_id` 一致）、**tenant_id**、可选 `title`、`created_at` / `updated_at`（迁移 `005_add_conversations`） |
+
+## LangGraph 托管表（非 Alembic）
+
+以下由 **`langgraph-checkpoint-postgres`** / **`langgraph`** 在应用启动时调用 `AsyncPostgresSaver.setup()` / `AsyncPostgresStore.setup()` 自动建表/迁移，**不**出现在本仓库 Alembic 版本中：
+
+- **Checkpoint**：如 `checkpoints`、`checkpoint_blobs`、`checkpoint_writes`、`checkpoint_migrations` 等（多轮对话状态）。
+- **Store**：如 `store_migrations` 及条目表（`/memories/` 虚拟文件持久化，按 namespace 区分租户）。

@@ -84,5 +84,10 @@ Uvicorn 监听地址端口通常由启动参数或部署配置决定；`Settings
 | `AGENT_LLM_BASE_URL` / `AGENT_LLM_MODEL` / `AGENT_LLM_API_KEY` | OpenAI 兼容 Chat Completions 端点（可指向 OpenAI、DeepSeek、本地 vLLM 等） |
 | `AGENT_SYSTEM_PROMPT` | 可选；非空则覆盖内置系统提示 |
 | `TAVILY_API_KEY` | 可选；Agent 工具链中的联网搜索（Tavily） |
+| `AGENT_MEMORY_ENABLED` | 默认 `true`；`false` 时关闭 LangGraph checkpoint/store 初始化，Agent 无多轮与跨会话 `/memories/` 持久化 |
+| `AGENT_MEMORY_TTL_DAYS` | 预留；长期记忆 TTL 策略（与 LangGraph store TTL 对接时可使用） |
+| `AGENT_SUMMARIZATION_ENABLED` | 预留；是否与 Deep Agents 摘要中间件策略对齐 |
 
-`POST /api/v1/agent/chat` 为 **SSE** 流式响应，需 **Bearer JWT**。
+`POST /api/v1/agent/chat` 为 **SSE** 流式响应，需 **Bearer JWT**。可选请求字段 `thread_id` 用于续聊；另提供 `GET/DELETE /api/v1/agent/threads`、`GET/PUT/DELETE /api/v1/agent/memory/...` 管理线程与长期记忆条目（均需 JWT，且受 `AGENT_MEMORY_ENABLED` 影响）。
+
+详见 [服务端架构](../architecture/server.md) 中的「Agent（Deep Agents + LangGraph）」一节。

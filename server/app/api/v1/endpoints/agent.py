@@ -6,13 +6,25 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage, ToolMessageChunk
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_tenant_id
-from app.schemas.agent import AgentChatRequest
+from app.core.config import settings
+from app.core.database import get_session
+from app.core.exceptions import NotFoundError
+from app.schemas.agent import (
+    AgentChatRequest,
+    ConversationOut,
+    MemoryItemOut,
+    MemoryPutBody,
+)
 from app.services.agent.agent_factory import build_agent
+from app.services.agent.memory_infra import memory_infra_initialized
+from app.services.agent.memory_provider import StoreMemoryProvider
+from app.services.conversation_service import ConversationService
 
 logger = structlog.get_logger(__name__)
 
@@ -44,16 +56,28 @@ def _message_content_as_text(content: object) -> str:
 async def _stream_agent(
     tenant_id: uuid.UUID,
     message: str,
+    *,
+    thread_id: str | None,
 ) -> AsyncIterator[str]:
     """Run the agent and yield SSE-formatted chunks."""
     agent = build_agent(tenant_id)
     full_reply_parts: list[str] = []
+
+    stream_config: dict | None = None
+    if thread_id:
+        stream_config = {
+            "configurable": {
+                "thread_id": thread_id,
+            },
+        }
+        yield _sse("thread", {"thread_id": thread_id})
 
     try:
         async for chunk in agent.astream(
             {"messages": [{"role": "user", "content": message}]},
             stream_mode="messages",
             version="v2",
+            config=stream_config,
         ):
             if chunk.get("type") != "messages":
                 continue
@@ -90,13 +114,14 @@ async def _stream_agent(
         logger.info(
             "agent_llm_response",
             tenant_id=str(tenant_id),
+            thread_id=thread_id,
             reply_char_len=len(full_text),
             reply_text=full_text,
         )
         yield _sse("done", "")
 
     except Exception:
-        logger.exception("agent_stream_error", tenant_id=str(tenant_id))
+        logger.exception("agent_stream_error", tenant_id=str(tenant_id), thread_id=thread_id)
         yield _sse("error", "An internal error occurred while processing your request.")
 
 
@@ -104,14 +129,97 @@ async def _stream_agent(
 async def agent_chat(
     body: AgentChatRequest,
     tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> StreamingResponse:
     """Chat with the AI agent. Returns a Server-Sent Events stream."""
-    logger.info("agent_chat_request", tenant_id=str(tenant_id), message_len=len(body.message))
+    logger.info(
+        "agent_chat_request",
+        tenant_id=str(tenant_id),
+        message_len=len(body.message),
+        has_thread_id=body.thread_id is not None,
+    )
+
+    resolved_thread: str | None = None
+    if settings.agent_memory_enabled and memory_infra_initialized():
+        svc = ConversationService(session, tenant_id)
+        try:
+            tid = await svc.ensure_thread(body.thread_id)
+        except NotFoundError:
+            raise
+        resolved_thread = str(tid)
+
     return StreamingResponse(
-        _stream_agent(tenant_id, body.message),
+        _stream_agent(tenant_id, body.message, thread_id=resolved_thread),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/threads", response_model=list[ConversationOut])
+async def list_agent_threads(
+    tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    limit: int = 100,
+    offset: int = 0,
+) -> list[ConversationOut]:
+    if not settings.agent_memory_enabled or not memory_infra_initialized():
+        return []
+    svc = ConversationService(session, tenant_id)
+    rows = await svc.list_threads(limit=limit, offset=offset)
+    return [ConversationOut.model_validate(r) for r in rows]
+
+
+@router.delete("/threads/{thread_id}", status_code=204)
+async def delete_agent_thread(
+    thread_id: uuid.UUID,
+    tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    if not settings.agent_memory_enabled or not memory_infra_initialized():
+        raise HTTPException(status_code=503, detail="Agent memory is not available")
+    svc = ConversationService(session, tenant_id)
+    try:
+        await svc.delete_thread(thread_id)
+    except NotFoundError:
+        raise
+    return Response(status_code=204)
+
+
+@router.get("/memory", response_model=list[MemoryItemOut])
+async def list_agent_memory(
+    tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+    prefix: str = "/memories/",
+) -> list[MemoryItemOut]:
+    if not settings.agent_memory_enabled or not memory_infra_initialized():
+        return []
+    provider = StoreMemoryProvider()
+    items = await provider.list_for_prefix(tenant_id, prefix=prefix)
+    return [MemoryItemOut(key=i.key, preview=i.content) for i in items]
+
+
+@router.put("/memory/{key:path}", status_code=204)
+async def put_agent_memory(
+    key: str,
+    body: MemoryPutBody,
+    tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+) -> Response:
+    if not settings.agent_memory_enabled or not memory_infra_initialized():
+        raise HTTPException(status_code=503, detail="Agent memory is not available")
+    provider = StoreMemoryProvider()
+    await provider.store(tenant_id, key, body.content)
+    return Response(status_code=204)
+
+
+@router.delete("/memory/{key:path}", status_code=204)
+async def delete_agent_memory(
+    key: str,
+    tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+) -> Response:
+    if not settings.agent_memory_enabled or not memory_infra_initialized():
+        raise HTTPException(status_code=503, detail="Agent memory is not available")
+    provider = StoreMemoryProvider()
+    await provider.delete(tenant_id, key)
+    return Response(status_code=204)

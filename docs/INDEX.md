@@ -17,7 +17,7 @@
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
 | [architecture/repository-structure.md](./architecture/repository-structure.md) | 仓库目录结构 | 目录、结构、server、android-app、db |
-| [architecture/server.md](./architecture/server.md) | 服务端分层、语音 STT | FastAPI、分层、WebSocket、whisper、fun_asr、speech |
+| [architecture/server.md](./architecture/server.md) | 服务端分层、语音 STT、Agent 记忆与线程 | FastAPI、分层、WebSocket、whisper、fun_asr、speech、agent、thread、LangGraph、checkpoint、memory |
 
 ### 研发流程
 
@@ -34,7 +34,7 @@
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
 | [domain/multi-tenancy.md](./domain/multi-tenancy.md) | 多租户模型与 API 约定 | tenant_id、JWT、租户、隔离 |
-| [domain/database-schema.md](./domain/database-schema.md) | 数据库表概要 | tenants、todos、app_metadata |
+| [domain/database-schema.md](./domain/database-schema.md) | 数据库表概要 | tenants、todos、app_metadata、conversations、checkpoint、store |
 
 ### 客户端平台
 
