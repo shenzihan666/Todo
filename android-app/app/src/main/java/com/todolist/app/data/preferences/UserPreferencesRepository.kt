@@ -18,6 +18,7 @@ private val ACCESS_TOKEN_KEY = stringPreferencesKey("access_token")
 private val REFRESH_TOKEN_KEY = stringPreferencesKey("refresh_token")
 private val TENANT_ID_KEY = stringPreferencesKey("tenant_id")
 private val USERNAME_KEY = stringPreferencesKey("username")
+private val AGENT_THREAD_ID_KEY = stringPreferencesKey("agent_thread_id")
 
 class UserPreferencesRepository(
     private val context: Context,
@@ -56,6 +57,11 @@ class UserPreferencesRepository(
         prefs[USERNAME_KEY].orEmpty()
     }
 
+    /** LangGraph agent thread id (UUID string); persisted for chat history after app restart. */
+    val agentThreadId: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[AGENT_THREAD_ID_KEY].orEmpty()
+    }
+
     val isLoggedIn: Flow<Boolean> = context.dataStore.data.map { prefs ->
         !prefs[ACCESS_TOKEN_KEY].isNullOrEmpty()
     }
@@ -91,9 +97,21 @@ class UserPreferencesRepository(
             prefs.remove(REFRESH_TOKEN_KEY)
             prefs.remove(TENANT_ID_KEY)
             prefs.remove(USERNAME_KEY)
+            prefs.remove(AGENT_THREAD_ID_KEY)
         }
         cachedAccessToken.set("")
         cachedRefreshToken.set("")
+    }
+
+    suspend fun setAgentThreadId(threadId: String) {
+        val trimmed = threadId.trim()
+        context.dataStore.edit { prefs ->
+            if (trimmed.isEmpty()) {
+                prefs.remove(AGENT_THREAD_ID_KEY)
+            } else {
+                prefs[AGENT_THREAD_ID_KEY] = trimmed
+            }
+        }
     }
 
     /**

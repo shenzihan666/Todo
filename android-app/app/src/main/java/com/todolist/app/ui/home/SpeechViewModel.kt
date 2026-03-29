@@ -85,6 +85,7 @@ class SpeechViewModel(
 
     init {
         viewModelScope.launch {
+            loadHistoryFromServer()
             transcriber.state.collect { state ->
                 if (state == TranscriberState.Idle) {
                     val finalTranscript = transcriber.transcript.value
@@ -139,6 +140,30 @@ class SpeechViewModel(
                 }
             }
         }
+    }
+
+    private suspend fun loadHistoryFromServer() {
+        val tid = userPreferences.agentThreadId.first().trim()
+        if (tid.isEmpty()) return
+        val ip = userPreferences.serverIp.first()
+        if (ip.isEmpty()) return
+        if (userPreferences.getCachedAccessToken().trim().isEmpty()) return
+        val base = buildServerBaseUrl(ip)
+        agentSseClient.fetchThreadHistory(base, tid).fold(
+            onSuccess = { rows ->
+                if (rows.isEmpty()) return@fold
+                _messages.value =
+                    rows.map { row ->
+                        ChatMessage(
+                            text = row.content,
+                            isUser = row.role == "user",
+                            isPending = false,
+                            showAgentStatusRow = false,
+                        )
+                    }
+            },
+            onFailure = { },
+        )
     }
 
     fun onHoldStart() {
@@ -277,11 +302,22 @@ class SpeechViewModel(
         }
         _errorMessage.value = null
         val base = buildServerBaseUrl(ip)
+        val threadIdForRequest =
+            userPreferences.agentThreadId.first().trim().takeIf { it.isNotEmpty() }
         var awaitingConfirmation = false
         try {
             try {
-                agentSseClient.streamChat(base, userText, requireConfirmation = true).collect { ev ->
+                agentSseClient
+                    .streamChat(
+                        base,
+                        userText,
+                        requireConfirmation = true,
+                        threadId = threadIdForRequest,
+                    ).collect { ev ->
                     when (ev) {
+                        is AgentSseEvent.Thread -> {
+                            userPreferences.setAgentThreadId(ev.threadId)
+                        }
                         is AgentSseEvent.Token -> {
                             _messages.value =
                                 _messages.value.map { m ->

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -23,6 +24,9 @@ import okio.BufferedSource
 
 sealed class AgentSseEvent {
     data class Token(val text: String) : AgentSseEvent()
+
+    /** First SSE event when server assigns or continues a LangGraph thread. */
+    data class Thread(val threadId: String) : AgentSseEvent()
 
     data class ToolCall(val tool: String) : AgentSseEvent()
 
@@ -54,6 +58,13 @@ private data class AgentChatRequestBody(
     val message: String,
     val media_ids: List<String> = emptyList(),
     val require_confirmation: Boolean = false,
+    @SerialName("thread_id") val threadId: String? = null,
+)
+
+@Serializable
+data class AgentHistoryMessageDto(
+    val role: String,
+    val content: String,
 )
 
 @Serializable
@@ -69,6 +80,7 @@ class AgentSseClient(
         baseUrl: String,
         message: String,
         requireConfirmation: Boolean = true,
+        threadId: String? = null,
     ): Flow<AgentSseEvent> =
         flow {
             val url = baseUrl.trim().trimEnd('/') + "/api/v1/agent/chat"
@@ -78,6 +90,7 @@ class AgentSseClient(
                     AgentChatRequestBody(
                         message = message,
                         require_confirmation = requireConfirmation,
+                        threadId = threadId?.trim()?.takeIf { it.isNotEmpty() },
                     ),
                 )
             val request =
@@ -102,6 +115,43 @@ class AgentSseClient(
                 response.close()
             }
         }.flowOn(Dispatchers.IO)
+
+    suspend fun fetchThreadHistory(
+        baseUrl: String,
+        threadId: String,
+    ): Result<List<AgentHistoryMessageDto>> =
+        withContext(Dispatchers.IO) {
+            val tid = threadId.trim()
+            if (tid.isEmpty()) {
+                return@withContext Result.success(emptyList())
+            }
+            val url =
+                baseUrl.trim().trimEnd('/') +
+                    "/api/v1/agent/threads/" +
+                    tid +
+                    "/history"
+            runCatching {
+                val request =
+                    Request.Builder()
+                        .url(url)
+                        .addHeader("Accept", "application/json")
+                        .get()
+                        .build()
+                val response = okHttpClient.newCall(request).execute()
+                val bodyStr = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    error("HTTP ${response.code}: $bodyStr")
+                }
+                if (bodyStr.isBlank()) {
+                    emptyList()
+                } else {
+                    json.decodeFromString(
+                        ListSerializer(AgentHistoryMessageDto.serializer()),
+                        bodyStr,
+                    )
+                }
+            }
+        }
 
     suspend fun executeActions(
         baseUrl: String,
@@ -143,6 +193,13 @@ class AgentSseClient(
             dataBuilder.clear()
             eventName = null
             when (name) {
+                "thread" -> {
+                    val obj = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull()
+                    val tid = obj?.get("thread_id")?.jsonPrimitive?.contentOrNull
+                    if (!tid.isNullOrBlank()) {
+                        out.emit(AgentSseEvent.Thread(tid))
+                    }
+                }
                 "token" -> out.emit(AgentSseEvent.Token(parseTokenPayload(data)))
                 "tool_call" -> {
                     val tool = parseToolField(data, "tool")

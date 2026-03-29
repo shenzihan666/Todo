@@ -6,6 +6,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class AgentHistoryMessageOut(BaseModel):
+    """One user/assistant turn for client chat history UI."""
+
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1)
+
+
 class AgentChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User message to send to the agent")
     thread_id: uuid.UUID | None = Field(

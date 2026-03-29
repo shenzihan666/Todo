@@ -40,7 +40,7 @@
 
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
-| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间、Agent 气泡与确认清单 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、Schedule、scheduled_at、Agent SSE、流式、ConfirmActionsSheet、execute-actions、 flavors |
+| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间、Agent 气泡与确认清单 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、Schedule、scheduled_at、Agent SSE、流式、ConfirmActionsSheet、execute-actions、thread_id、history、 flavors |
 
 ---
 

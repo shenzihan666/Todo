@@ -9,7 +9,13 @@ from typing import Annotated, Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage, ToolMessageChunk
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    HumanMessage,
+    ToolMessage,
+    ToolMessageChunk,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_tenant_id
@@ -19,6 +25,7 @@ from app.core.exceptions import NotFoundError
 from app.repositories.todo_repository import TodoRepository
 from app.schemas.agent import (
     AgentChatRequest,
+    AgentHistoryMessageOut,
     ConversationOut,
     ExecuteActionsRequest,
     ExecuteActionsResponse,
@@ -63,6 +70,21 @@ def _message_content_as_text(content: object) -> str:
                 parts.append(str(block.get("text", "")))
         return "".join(parts)
     return str(content)
+
+
+def _history_messages_from_state(raw_messages: list[Any]) -> list[AgentHistoryMessageOut]:
+    """Map LangGraph state messages to user/assistant rows for the mobile chat UI."""
+    out: list[AgentHistoryMessageOut] = []
+    for msg in raw_messages:
+        if isinstance(msg, HumanMessage):
+            text = _message_content_as_text(msg.content)
+            if text.strip():
+                out.append(AgentHistoryMessageOut(role="user", content=text))
+        elif isinstance(msg, AIMessage):
+            text = _message_content_as_text(msg.content)
+            if text.strip():
+                out.append(AgentHistoryMessageOut(role="assistant", content=text))
+    return out
 
 
 def _todo_update_from_execute_args(payload: dict[str, Any]) -> TodoUpdate:
@@ -281,6 +303,34 @@ async def list_agent_threads(
     svc = ConversationService(session, tenant_id)
     rows = await svc.list_threads(limit=limit, offset=offset)
     return [ConversationOut.model_validate(r) for r in rows]
+
+
+@router.get("/threads/{thread_id}/history", response_model=list[AgentHistoryMessageOut])
+async def get_agent_thread_history(
+    thread_id: uuid.UUID,
+    tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[AgentHistoryMessageOut]:
+    """Return user/assistant text turns from the LangGraph checkpoint for this thread."""
+    if not settings.agent_memory_enabled or not memory_infra_initialized():
+        return []
+    svc = ConversationService(session, tenant_id)
+    try:
+        await svc.ensure_thread(thread_id)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="Conversation not found") from None
+
+    agent = build_agent(tenant_id)
+    config: dict[str, Any] = {"configurable": {"thread_id": str(thread_id)}}
+    try:
+        snap = await agent.aget_state(config)
+    except ValueError:
+        return []
+    values = snap.values or {}
+    raw = values.get("messages")
+    if not isinstance(raw, list):
+        return []
+    return _history_messages_from_state(raw)
 
 
 @router.delete("/threads/{thread_id}", status_code=204)
