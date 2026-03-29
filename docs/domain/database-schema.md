@@ -1,6 +1,6 @@
 # 数据库模式概要
 
-详见 `db/init/001_schema.sql` 与 Alembic 迁移。
+详见 `db/init/001_schema.sql` 与 Alembic 迁移。`001_schema.sql` 中的应用表定义与 Alembic（至 `006_add_scheduled_at_on_todos`）一致，供 `scripts/init_local_db.py` 在无单独执行 `alembic upgrade` 时仍能创建完整业务表；生产/团队仍以 Alembic 为权威迁移路径。
 
 | 对象 | 说明 |
 |------|------|

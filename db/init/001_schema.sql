@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 );
 
 INSERT INTO tenants (id, name)
-VALUES ('00000000-0000-0000-0000-000000000001'::uuid, 'Bootstrap default tenant')
+VALUES ('00000000-0000-0000-0000-000000000001'::uuid, 'Migrated default tenant')
 ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -55,3 +55,26 @@ CREATE TABLE IF NOT EXISTS todos (
 
 CREATE INDEX IF NOT EXISTS ix_todos_tenant_id ON todos (tenant_id);
 CREATE INDEX IF NOT EXISTS ix_todos_tenant_id_scheduled_at ON todos (tenant_id, scheduled_at);
+
+-- Aligned with Alembic 004_add_media_uploads / 005_add_conversations
+CREATE TABLE IF NOT EXISTS media_uploads (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    content_type VARCHAR(255) NOT NULL,
+    original_filename VARCHAR(512) NOT NULL,
+    stored_path VARCHAR(1024) NOT NULL,
+    size_bytes BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_media_uploads_tenant_id ON media_uploads (tenant_id);
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    title VARCHAR(512),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_conversations_tenant_id ON conversations (tenant_id);
