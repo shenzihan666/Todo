@@ -12,7 +12,7 @@ Thumbs.db
 .env
 !.env.example
 
-# Server uploads (runtime binary files)
+# Server uploads (runtime binary files; do not commit)
 server/data/uploads/
 
 # Python

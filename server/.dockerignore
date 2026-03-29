@@ -7,3 +7,6 @@ dist
 .env
 tests
 .git
+
+# Runtime media files (not part of image)
+data/uploads/

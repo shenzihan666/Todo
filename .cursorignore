@@ -1,0 +1,2 @@
+# Runtime uploads (large binaries; also gitignored)
+server/data/uploads/
