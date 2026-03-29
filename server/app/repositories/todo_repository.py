@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,37 @@ class TodoRepository(BaseRepository):
             .limit(limit)
             .offset(offset),
         )
+        return list(result.scalars().all())
+
+    async def list_for_agent(
+        self,
+        *,
+        scheduled_from: datetime | None = None,
+        scheduled_to: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Todo]:
+        """List todos for the tenant, optionally filtered by ``scheduled_at`` window.
+
+        When *scheduled_from* or *scheduled_to* is set, only rows with a non-null
+        ``scheduled_at`` in the inclusive range are returned, ordered by time.
+        Otherwise returns recent todos by ``created_at`` (newest first).
+        """
+        stmt = select(Todo).where(Todo.tenant_id == self._tenant_id)
+        has_time = scheduled_from is not None or scheduled_to is not None
+        if has_time:
+            stmt = stmt.where(Todo.scheduled_at.isnot(None))
+            if scheduled_from is not None:
+                stmt = stmt.where(Todo.scheduled_at >= scheduled_from)
+            if scheduled_to is not None:
+                stmt = stmt.where(Todo.scheduled_at <= scheduled_to)
+            stmt = stmt.order_by(Todo.scheduled_at.asc())
+        else:
+            stmt = stmt.order_by(Todo.created_at.desc())
+        safe_limit = min(max(limit, 1), 500)
+        safe_offset = max(offset, 0)
+        stmt = stmt.limit(safe_limit).offset(safe_offset)
+        result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_by_id(self, todo_id: int) -> Todo | None:

@@ -31,6 +31,8 @@ data class ChatMessage(
     val text: String,
     val isUser: Boolean,
     val isPending: Boolean = false,
+    /** Voice agent SSE reply: show typewriter + 处理中/处理完成 under the bubble. */
+    val showAgentStatusRow: Boolean = false,
 )
 
 class SpeechViewModel(
@@ -92,6 +94,7 @@ class SpeechViewModel(
                                 text = "",
                                 isUser = false,
                                 isPending = true,
+                                showAgentStatusRow = true,
                             )
                         agentJob?.cancel()
                         agentJob =

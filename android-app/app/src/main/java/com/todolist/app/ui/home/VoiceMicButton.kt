@@ -5,8 +5,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -16,9 +16,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitPointerEventScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,7 +46,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -243,11 +240,11 @@ fun VoiceMicButton(
                             }
                     }
                     .pointerInput(hasPermission, cancelThresholdPx) {
-                        awaitEachGesture {
+                        awaitPointerEventScope {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             if (!hasPermission) {
                                 onRequestPermission()
-                                return@awaitEachGesture
+                                return@awaitPointerEventScope
                             }
                             view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                             isHolding = true
@@ -256,14 +253,12 @@ fun VoiceMicButton(
                             var lastOffset = 0f
                             var cancelled = false
                             try {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent(PointerEventPass.Main)
-                                        val change = event.changes.firstOrNull() ?: break
-                                        lastOffset = change.position.y - down.position.y
-                                        dragOffsetY = lastOffset
-                                        if (!change.pressed) break
-                                    }
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Main)
+                                    val change = event.changes.firstOrNull() ?: break
+                                    lastOffset = change.position.y - down.position.y
+                                    dragOffsetY = lastOffset
+                                    if (!change.pressed) break
                                 }
                                 cancelled = lastOffset <= -cancelThresholdPx
                             } finally {

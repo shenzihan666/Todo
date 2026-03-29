@@ -76,7 +76,15 @@ fun HomeContent(
 
     val listState = rememberLazyListState()
 
-    LaunchedEffect(messages.size, transcript, errorMessage, isListening, isProcessing) {
+    val lastAssistantTextLen = messages.lastOrNull { !it.isUser }?.text?.length ?: 0
+    LaunchedEffect(
+        messages.size,
+        transcript,
+        errorMessage,
+        isListening,
+        isProcessing,
+        lastAssistantTextLen,
+    ) {
         if (messages.isNotEmpty() || transcript.isNotEmpty() || errorMessage != null) {
             var lastIndex = messages.size - 1
             if ((isListening || isProcessing) && transcript.isNotEmpty()) {
@@ -114,11 +122,29 @@ fun HomeContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(messages, key = { it.id }) { msg ->
-                ChatBubble(
-                    text = msg.text,
-                    isUser = msg.isUser,
-                    isPending = msg.isPending,
-                )
+                val lastAssistantId = messages.lastOrNull { !it.isUser }?.id
+                val isLatestAssistant = lastAssistantId != null && msg.id == lastAssistantId
+                if (!msg.isUser && isLatestAssistant && msg.showAgentStatusRow) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        ChatBubble(
+                            text = msg.text,
+                            isUser = false,
+                            isPending = msg.isPending,
+                            messageId = msg.id,
+                            useTypewriter = msg.isPending,
+                        )
+                        AssistantReplyStatusRow(
+                            isStreaming = msg.isPending,
+                            modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                        )
+                    }
+                } else {
+                    ChatBubble(
+                        text = msg.text,
+                        isUser = msg.isUser,
+                        isPending = msg.isPending,
+                    )
+                }
             }
 
             if ((isListening || isProcessing) && transcript.isNotEmpty()) {
@@ -216,6 +242,8 @@ fun ChatBubble(
     text: String,
     isUser: Boolean,
     isPending: Boolean,
+    messageId: String? = null,
+    useTypewriter: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val backgroundColor =
@@ -252,11 +280,21 @@ fun ChatBubble(
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            Text(
-                text = if (isPending) "$text..." else text,
-                color = if (isPending) textColor.copy(alpha = 0.7f) else textColor,
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            when {
+                !isUser && useTypewriter && messageId != null ->
+                    TypewriterAssistantText(
+                        messageId = messageId,
+                        fullText = text,
+                        color = textColor.copy(alpha = 0.92f),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                else ->
+                    Text(
+                        text = if (isPending && !useTypewriter) "$text..." else text,
+                        color = if (isPending) textColor.copy(alpha = 0.7f) else textColor,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+            }
         }
     }
 }

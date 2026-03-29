@@ -17,7 +17,7 @@
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
 | [architecture/repository-structure.md](./architecture/repository-structure.md) | 仓库目录结构 | 目录、结构、server、android-app、db |
-| [architecture/server.md](./architecture/server.md) | 服务端分层、语音 STT、Agent 记忆与线程 | FastAPI、分层、WebSocket、whisper、fun_asr、speech、agent、thread、LangGraph、checkpoint、memory |
+| [architecture/server.md](./architecture/server.md) | 服务端分层、语音 STT、Agent 记忆与线程 | FastAPI、分层、WebSocket、whisper、fun_asr、speech、agent、thread、LangGraph、checkpoint、memory、list_todos、delete_todo |
 
 ### 研发流程
 
@@ -40,7 +40,7 @@
 
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
-| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、Schedule、scheduled_at、 flavors |
+| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间、Agent 气泡 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、Schedule、scheduled_at、Agent SSE、流式、 flavors |
 
 ---
 

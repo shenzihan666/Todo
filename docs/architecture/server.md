@@ -29,5 +29,6 @@ app/api/v1/endpoints/ → schemas/ → services/ → repositories/ → models/
 - **会话元数据**：业务表 `conversations`（`tenant_id` 隔离）登记线程；**多轮消息与图状态**由 LangGraph **`AsyncPostgresSaver`** 写入 PostgreSQL（`checkpoint_*` 等表，由 `langgraph-checkpoint-postgres` 在启动时 `setup()` 创建/迁移）。
 - **长期记忆**：Deep Agents `CompositeBackend`：`StateBackend`（线程内草稿）+ `StoreBackend` 路由到路径前缀 `/memories/`；底层为 LangGraph **`AsyncPostgresStore`**（`store` 相关表，启动时 `setup()`）。租户隔离通过 `StoreBackend` 的 **namespace**（`(str(tenant_id), "filesystem")`）实现。
 - **可插拔**：`MemoryProvider` / `StoreMemoryProvider`（`services/agent/memory_provider.py`）为后续 RAG（向量检索）预留 `retrieve(query)` 等接口；关闭记忆时设 `AGENT_MEMORY_ENABLED=false`，Agent 退化为无 checkpoint/store 的单轮行为。
+- **Todo 工具**（租户隔离）：`services/agent/tools/db_tools.py` 暴露 `list_todos`（可选 `scheduled_at` 区间）、`create_todo`、`update_todo`、`delete_todo`；模型宜先 `list_todos` 再按 id 更新/删除。批量删除为多次 `delete_todo`（后续可再加批量 tool）。
 
 相关实现：`services/agent/agent_factory.py`、`memory_infra.py`、`memory_backend.py`、`conversation_service.py`。
