@@ -81,6 +81,7 @@ class AgentSseClient(
         message: String,
         requireConfirmation: Boolean = true,
         threadId: String? = null,
+        mediaIds: List<String> = emptyList(),
     ): Flow<AgentSseEvent> =
         flow {
             val url = baseUrl.trim().trimEnd('/') + "/api/v1/agent/chat"
@@ -89,6 +90,7 @@ class AgentSseClient(
                     AgentChatRequestBody.serializer(),
                     AgentChatRequestBody(
                         message = message,
+                        media_ids = mediaIds,
                         require_confirmation = requireConfirmation,
                         threadId = threadId?.trim()?.takeIf { it.isNotEmpty() },
                     ),

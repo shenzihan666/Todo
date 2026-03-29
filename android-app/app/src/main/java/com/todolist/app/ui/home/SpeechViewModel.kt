@@ -8,6 +8,7 @@ import com.todolist.app.R
 import com.todolist.app.data.network.AgentSseClient
 import com.todolist.app.data.network.AgentSseEvent
 import com.todolist.app.data.network.ProposedAction
+import com.todolist.app.data.network.dto.MediaUploadResponse
 import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.data.repository.MediaRepositoryImpl
 import com.todolist.app.domain.speech.SpeechTranscriber
@@ -74,6 +75,9 @@ class SpeechViewModel(
     private val _pendingConfirmation = MutableStateFlow<PendingConfirmation?>(null)
     val pendingConfirmation: StateFlow<PendingConfirmation?> = _pendingConfirmation.asStateFlow()
 
+    private val _pendingImageUris = MutableStateFlow<List<Uri>>(emptyList())
+    val pendingImageUris: StateFlow<List<Uri>> = _pendingImageUris.asStateFlow()
+
     private var agentJob: Job? = null
 
     /**
@@ -90,6 +94,7 @@ class SpeechViewModel(
                 if (state == TranscriberState.Idle) {
                     val finalTranscript = transcriber.transcript.value
                     if (finalTranscript.isNotBlank()) {
+                        val pendingSnapshot = _pendingImageUris.value.toList()
                         _messages.value =
                             _messages.value +
                             ChatMessage(
@@ -111,7 +116,38 @@ class SpeechViewModel(
                         agentJob =
                             viewModelScope.launch {
                                 try {
-                                    runAgentChat(finalTranscript, assistantId)
+                                    val app = getApplication<Application>()
+                                    val ip = userPreferences.serverIp.first()
+                                    if (ip.isEmpty()) {
+                                        _errorMessage.value =
+                                            app.getString(R.string.voice_error_no_server)
+                                        markAssistantFinished(assistantId)
+                                        return@launch
+                                    }
+                                    if (userPreferences.getCachedAccessToken().trim().isEmpty()) {
+                                        _errorMessage.value =
+                                            app.getString(R.string.image_upload_error_not_signed_in)
+                                        markAssistantFinished(assistantId)
+                                        return@launch
+                                    }
+                                    val base = buildServerBaseUrl(ip)
+                                    val mediaIds: List<String> =
+                                        if (pendingSnapshot.isEmpty()) {
+                                            emptyList()
+                                        } else {
+                                            val uploadResult = uploadPendingImages(pendingSnapshot, base)
+                                            if (uploadResult.isFailure) {
+                                                val e = uploadResult.exceptionOrNull()!!
+                                                _errorMessage.value =
+                                                    e.message?.takeIf { it.isNotBlank() }
+                                                        ?: app.getString(R.string.image_upload_error)
+                                                markAssistantFinished(assistantId)
+                                                return@launch
+                                            }
+                                            _pendingImageUris.value = emptyList()
+                                            uploadResult.getOrThrow().map { it.id }
+                                        }
+                                    runAgentChat(finalTranscript, assistantId, mediaIds)
                                 } catch (e: CancellationException) {
                                     markAssistantFinished(assistantId)
                                     throw e
@@ -180,8 +216,23 @@ class SpeechViewModel(
         sessionControl.trySend(SessionMsg.Cancel)
     }
 
-    fun onImagePicked(uri: Uri) {
+    fun onImagesPicked(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        _pendingImageUris.value = _pendingImageUris.value + uris
+    }
+
+    fun removePendingImage(uri: Uri) {
+        _pendingImageUris.value = _pendingImageUris.value.filter { it != uri }
+    }
+
+    fun clearPendingImages() {
+        _pendingImageUris.value = emptyList()
+    }
+
+    fun sendPendingImages() {
         viewModelScope.launch {
+            val uris = _pendingImageUris.value
+            if (uris.isEmpty()) return@launch
             val ip = userPreferences.serverIp.first()
             if (ip.isEmpty()) {
                 _errorMessage.value =
@@ -194,41 +245,72 @@ class SpeechViewModel(
                 return@launch
             }
             _errorMessage.value = null
-            mediaRepository
-                .uploadImage(
-                    buildServerBaseUrl(ip),
-                    uri,
-                    getApplication(),
-                )
-                .fold(
-                    onSuccess = { response ->
-                        val app = getApplication<Application>()
-                        _messages.value =
-                            _messages.value +
-                            ChatMessage(
-                                text = app.getString(
-                                    R.string.image_upload_user_message,
-                                    response.originalFilename,
-                                ),
-                                isUser = true,
+            val base = buildServerBaseUrl(ip)
+            val app = getApplication<Application>()
+            uploadPendingImages(uris, base).fold(
+                onSuccess = { responses ->
+                    _pendingImageUris.value = emptyList()
+                    val userText =
+                        if (responses.size == 1) {
+                            app.getString(
+                                R.string.image_upload_user_message,
+                                responses.first().originalFilename,
                             )
-                        _messages.value =
-                            _messages.value +
-                            ChatMessage(
-                                text = app.getString(
-                                    R.string.image_upload_mock_reply,
-                                    response.originalFilename,
-                                ),
-                                isUser = false,
+                        } else {
+                            val names = responses.joinToString { it.originalFilename }
+                            app.getString(
+                                R.string.image_upload_user_message_batch,
+                                responses.size,
+                                names,
                             )
-                    },
-                    onFailure = { e ->
-                        _errorMessage.value =
-                            e.message?.takeIf { it.isNotBlank() }
-                                ?: getApplication<Application>().getString(R.string.image_upload_error)
-                    },
-                )
+                        }
+                    val mockText =
+                        if (responses.size == 1) {
+                            app.getString(
+                                R.string.image_upload_mock_reply,
+                                responses.first().originalFilename,
+                            )
+                        } else {
+                            app.getString(
+                                R.string.image_upload_mock_reply_batch,
+                                responses.size,
+                            )
+                        }
+                    _messages.value =
+                        _messages.value +
+                        ChatMessage(
+                            text = userText,
+                            isUser = true,
+                        )
+                    _messages.value =
+                        _messages.value +
+                        ChatMessage(
+                            text = mockText,
+                            isUser = false,
+                        )
+                },
+                onFailure = { e ->
+                    _errorMessage.value =
+                        e.message?.takeIf { it.isNotBlank() }
+                            ?: app.getString(R.string.image_upload_error)
+                },
+            )
         }
+    }
+
+    private suspend fun uploadPendingImages(
+        uris: List<Uri>,
+        base: String,
+    ): Result<List<MediaUploadResponse>> {
+        val app = getApplication<Application>()
+        val responses = mutableListOf<MediaUploadResponse>()
+        for (uri in uris) {
+            mediaRepository.uploadImage(base, uri, app).fold(
+                onSuccess = { responses.add(it) },
+                onFailure = { return Result.failure(it) },
+            )
+        }
+        return Result.success(responses)
     }
 
     private fun markAssistantFinished(assistantId: String) {
@@ -286,6 +368,7 @@ class SpeechViewModel(
     private suspend fun runAgentChat(
         userText: String,
         assistantId: String,
+        mediaIds: List<String> = emptyList(),
     ) {
         val ip = userPreferences.serverIp.first()
         if (ip.isEmpty()) {
@@ -313,6 +396,7 @@ class SpeechViewModel(
                         userText,
                         requireConfirmation = true,
                         threadId = threadIdForRequest,
+                        mediaIds = mediaIds,
                     ).collect { ev ->
                     when (ev) {
                         is AgentSseEvent.Thread -> {

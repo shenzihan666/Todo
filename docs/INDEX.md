@@ -23,7 +23,7 @@
 
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
-| [development/tech-stack.md](./development/tech-stack.md) | 技术栈与配置文件 | uv、PostgreSQL、Ruff、Compose、Gradle |
+| [development/tech-stack.md](./development/tech-stack.md) | 技术栈与配置文件 | uv、PostgreSQL、Ruff、Compose、Coil、Gradle |
 | [development/commands.md](./development/commands.md) | 常用命令 | docker、uvicorn、pytest、ruff、alembic |
 | [development/environment.md](./development/environment.md) | 后端环境变量 | .env、JWT、STT、Agent、Sentry、租户引导 |
 | [development/conventions.md](./development/conventions.md) | 约定与规范 | commit、API 版本、迁移、.env、换行 |
@@ -40,7 +40,7 @@
 
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
-| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间、Agent 气泡与确认清单 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、Schedule、scheduled_at、Agent SSE、流式、ConfirmActionsSheet、execute-actions、thread_id、history、 flavors |
+| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间、Agent 气泡与确认清单 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、Schedule、scheduled_at、Agent SSE、流式、ConfirmActionsSheet、execute-actions、thread_id、history、PickMultipleVisualMedia、media_ids、Coil、 flavors |
 
 ---
 

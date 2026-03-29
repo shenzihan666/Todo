@@ -30,6 +30,12 @@
     <string name="voice_cancel_hint">Slide up to cancel</string>
     <string name="voice_cancel_release">Release to cancel</string>
     <string name="content_desc_add_image">Add image</string>
+    <string name="pending_images_send">Send images</string>
+    <string name="pending_images_count">%d images selected</string>
+    <string name="content_desc_remove_image">Remove image</string>
+    <string name="content_desc_send_pending_images">Send selected images</string>
+    <string name="image_upload_user_message_batch">Uploaded %1$d images: %2$s</string>
+    <string name="image_upload_mock_reply_batch">Received %1$d images</string>
     <string name="image_upload_error_not_signed_in">Sign in to upload images.</string>
     <string name="image_upload_error">Could not upload image.</string>
     <string name="image_upload_user_message">Uploaded image: %1$s</string>

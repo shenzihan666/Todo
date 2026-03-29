@@ -58,12 +58,12 @@ fun HomeContent(
             permissionGranted = granted
         }
 
-    val pickImage =
+    val pickImages =
         rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.PickVisualMedia(),
-        ) { uri ->
-            if (uri != null) {
-                speechViewModel.onImagePicked(uri)
+            contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 9),
+        ) { uris ->
+            if (uris.isNotEmpty()) {
+                speechViewModel.onImagesPicked(uris)
             }
         }
 
@@ -74,6 +74,7 @@ fun HomeContent(
     val audioLevel by speechViewModel.audioLevel.collectAsStateWithLifecycle()
     val errorMessage by speechViewModel.errorMessage.collectAsStateWithLifecycle()
     val pendingConfirmation by speechViewModel.pendingConfirmation.collectAsStateWithLifecycle()
+    val pendingImageUris by speechViewModel.pendingImageUris.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
 
@@ -197,43 +198,58 @@ fun HomeContent(
 
         // Mic column centered horizontally; + sits just outside the 168dp ring, vertically aligned with the green mic circle
         // (not the column’s geometric center — timer text above shifts the mic center down).
-        Box(
+        Column(
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            VoiceMicButton(
-                isListening = isListening,
-                audioLevel = audioLevel,
-                hasPermission = permissionGranted,
-                onHoldStart = { speechViewModel.onHoldStart() },
-                onHoldEnd = { speechViewModel.onHoldEnd() },
-                onCancel = { speechViewModel.onHoldCancel() },
-                onRequestPermission = {
-                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                },
-                modifier = Modifier.align(Alignment.Center),
-            )
-            ImageAddButton(
-                onClick = {
-                    pickImage.launch(
-                        PickVisualMediaRequest(
-                            ActivityResultContracts.PickVisualMedia.ImageOnly,
-                        ),
-                    )
-                },
-                modifier =
-                    Modifier
-                        .align(Alignment.Center)
-                        .offset(
-                            // x: screen center → right edge of 168dp ring + half IconButton (~48dp)
-                            x = 84.dp + 4.dp,
-                            // y: align with center of 168dp mic area (below Column center due to timer row layout)
-                            y = 20.dp,
-                        ),
-            )
+            if (pendingImageUris.isNotEmpty()) {
+                PendingImagesBar(
+                    uris = pendingImageUris,
+                    onRemove = { speechViewModel.removePendingImage(it) },
+                    onSend = { speechViewModel.sendPendingImages() },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .padding(bottom = 8.dp),
+                )
+            }
+            Box {
+                VoiceMicButton(
+                    isListening = isListening,
+                    audioLevel = audioLevel,
+                    hasPermission = permissionGranted,
+                    onHoldStart = { speechViewModel.onHoldStart() },
+                    onHoldEnd = { speechViewModel.onHoldEnd() },
+                    onCancel = { speechViewModel.onHoldCancel() },
+                    onRequestPermission = {
+                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                ImageAddButton(
+                    onClick = {
+                        pickImages.launch(
+                            PickVisualMediaRequest(
+                                ActivityResultContracts.PickVisualMedia.ImageOnly,
+                            ),
+                        )
+                    },
+                    modifier =
+                        Modifier
+                            .align(Alignment.Center)
+                            .offset(
+                                // x: screen center → right edge of 168dp ring + half IconButton (~48dp)
+                                x = 84.dp + 4.dp,
+                                // y: align with center of 168dp mic area (below Column center due to timer row layout)
+                                y = 20.dp,
+                            ),
+                )
+            }
         }
     }
 
