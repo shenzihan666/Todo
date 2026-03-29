@@ -8,7 +8,7 @@
 | `tenants` | `id`（UUID）、名称、时间戳 |
 | `users` | 用户账号；关联 `tenants` |
 | `refresh_tokens` | 刷新令牌存储 |
-| `todos` | `id`、**tenant_id**（FK → `tenants`）、标题、描述、完成状态、`created_at`、`updated_at` |
+| `todos` | `id`、**tenant_id**（FK → `tenants`）、标题、描述、完成状态、可选 **`scheduled_at`**（用户意图日程时刻，TIMESTAMPTZ）、`created_at`、`updated_at`（迁移 `006_add_scheduled_at_on_todos`） |
 | `media_uploads` | 上传文件元数据；**tenant_id** 隔离（见迁移 `004_add_media_uploads`） |
 | `conversations` | Agent 对话线程元数据：`id`（UUID，与 LangGraph `thread_id` 一致）、**tenant_id**、可选 `title`、`created_at` / `updated_at`（迁移 `005_add_conversations`） |
 

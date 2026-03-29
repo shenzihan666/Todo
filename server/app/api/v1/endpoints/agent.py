@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
@@ -34,6 +35,12 @@ router = APIRouter(tags=["agent"])
 def _sse(event: str, data: str | dict) -> str:
     payload = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False)
     return f"event: {event}\ndata: {payload}\n\n"
+
+
+def _user_message_with_reference_utc(message: str) -> str:
+    """Prefix user text with server UTC so the agent can resolve 'today' / 'tomorrow'."""
+    ref = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return f"[Reference UTC time: {ref}]\n\n{message}"
 
 
 def _message_content_as_text(content: object) -> str:
@@ -74,7 +81,7 @@ async def _stream_agent(
 
     try:
         async for chunk in agent.astream(
-            {"messages": [{"role": "user", "content": message}]},
+            {"messages": [{"role": "user", "content": _user_message_with_reference_utc(message)}]},
             stream_mode="messages",
             version="v2",
             config=stream_config,

@@ -34,13 +34,13 @@
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
 | [domain/multi-tenancy.md](./domain/multi-tenancy.md) | 多租户模型与 API 约定 | tenant_id、JWT、租户、隔离 |
-| [domain/database-schema.md](./domain/database-schema.md) | 数据库表概要 | tenants、todos、app_metadata、conversations、checkpoint、store |
+| [domain/database-schema.md](./domain/database-schema.md) | 数据库表概要 | tenants、todos、scheduled_at、app_metadata、conversations、checkpoint、store |
 
 ### 客户端平台
 
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
-| [platform/android.md](./platform/android.md) | Android 架构与语音 | MVVM、Compose、WebSocket、Speech、 flavors |
+| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间 | MVVM、Compose、WebSocket、Speech、Schedule、scheduled_at、 flavors |
 
 ---
 

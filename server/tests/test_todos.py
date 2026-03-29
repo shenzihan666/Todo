@@ -20,6 +20,7 @@ def _make_todo(
     title="Buy groceries",
     description=None,
     completed=False,
+    scheduled_at=None,
     tenant_id=TEST_TENANT_ID,
 ):
     todo = Todo(
@@ -27,6 +28,7 @@ def _make_todo(
         title=title,
         description=description,
         completed=completed,
+        scheduled_at=scheduled_at,
     )
     todo.id = id_
     todo.created_at = NOW
@@ -52,7 +54,12 @@ class FakeTodoService:
 
     async def create_todo(self, data: TodoCreate) -> Todo:
         self._seq += 1
-        todo = _make_todo(id_=self._seq, title=data.title, description=data.description)
+        todo = _make_todo(
+            id_=self._seq,
+            title=data.title,
+            description=data.description,
+            scheduled_at=data.scheduled_at,
+        )
         self._store[self._seq] = todo
         return todo
 
@@ -94,6 +101,12 @@ def _auth_headers():
     return {"Authorization": f"Bearer {token}"}
 
 
+def _assert_iso_datetime_equal(a: str, b: str) -> None:
+    assert datetime.fromisoformat(a.replace("Z", "+00:00")) == datetime.fromisoformat(
+        b.replace("Z", "+00:00")
+    )
+
+
 @pytest.mark.asyncio
 async def test_todos_require_auth() -> None:
     """Without auth token, todo routes return 403."""
@@ -122,6 +135,7 @@ async def test_create_and_list(todo_client: AsyncClient) -> None:
     body = r.json()
     assert body["title"] == "Buy milk"
     assert body["completed"] is False
+    assert body["scheduled_at"] is None
     assert body["tenant_id"] == str(TEST_TENANT_ID)
     assert "id" in body
 
@@ -193,6 +207,39 @@ async def test_create_validation_empty_title(todo_client: AsyncClient) -> None:
         headers=_auth_headers(),
     )
     assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_with_scheduled_at(todo_client: AsyncClient) -> None:
+    when = "2026-03-29T06:00:00+00:00"
+    r = await todo_client.post(
+        "/api/v1/todos",
+        json={"title": "Breakfast", "scheduled_at": when},
+        headers=_auth_headers(),
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["title"] == "Breakfast"
+    _assert_iso_datetime_equal(body["scheduled_at"], when)
+
+
+@pytest.mark.asyncio
+async def test_update_scheduled_at(todo_client: AsyncClient) -> None:
+    cr = await todo_client.post(
+        "/api/v1/todos",
+        json={"title": "Meet"},
+        headers=_auth_headers(),
+    )
+    todo_id = cr.json()["id"]
+    assert cr.json()["scheduled_at"] is None
+    when = "2026-03-30T10:00:00+00:00"
+    r = await todo_client.patch(
+        f"/api/v1/todos/{todo_id}",
+        json={"scheduled_at": when},
+        headers=_auth_headers(),
+    )
+    assert r.status_code == 200
+    _assert_iso_datetime_equal(r.json()["scheduled_at"], when)
 
 
 @pytest.mark.asyncio

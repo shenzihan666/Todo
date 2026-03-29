@@ -48,8 +48,10 @@ CREATE TABLE IF NOT EXISTS todos (
     title VARCHAR(512) NOT NULL,
     description TEXT,
     completed BOOLEAN NOT NULL DEFAULT FALSE,
+    scheduled_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS ix_todos_tenant_id ON todos (tenant_id);
+CREATE INDEX IF NOT EXISTS ix_todos_tenant_id_scheduled_at ON todos (tenant_id, scheduled_at);

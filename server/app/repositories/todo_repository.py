@@ -34,6 +34,7 @@ class TodoRepository(BaseRepository):
             tenant_id=self._tenant_id,
             title=data.title,
             description=data.description,
+            scheduled_at=data.scheduled_at,
         )
         self.session.add(todo)
         await self.session.flush()

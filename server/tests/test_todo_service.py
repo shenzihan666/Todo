@@ -20,6 +20,7 @@ def _make_todo(**overrides):
         "title": "Test",
         "description": None,
         "completed": False,
+        "scheduled_at": None,
     }
     defaults.update(overrides)
     todo = Todo(
@@ -27,6 +28,7 @@ def _make_todo(**overrides):
         title=defaults["title"],
         description=defaults["description"],
         completed=defaults["completed"],
+        scheduled_at=defaults["scheduled_at"],
     )
     todo.id = defaults["id"]
     todo.created_at = NOW
@@ -75,6 +77,17 @@ async def test_create_todo(service, mock_repo) -> None:
     data = TodoCreate(title="New")
     result = await service.create_todo(data)
     assert result.title == "New"
+    mock_repo.create.assert_awaited_once_with(data)
+
+
+@pytest.mark.asyncio
+async def test_create_todo_with_scheduled_at(service, mock_repo) -> None:
+    at = datetime(2026, 3, 29, 6, 0, tzinfo=UTC)
+    expected = _make_todo(title="Breakfast", scheduled_at=at)
+    mock_repo.create.return_value = expected
+    data = TodoCreate(title="Breakfast", scheduled_at=at)
+    result = await service.create_todo(data)
+    assert result.scheduled_at == at
     mock_repo.create.assert_awaited_once_with(data)
 
 

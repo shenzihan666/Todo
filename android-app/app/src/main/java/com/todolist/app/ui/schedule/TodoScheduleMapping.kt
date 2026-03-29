@@ -7,7 +7,8 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
 
 internal fun TodoReadDto.toScheduleEvent(): ScheduleEvent {
-    val (date, start, end) = parseCreatedAt(created_at)
+    val instant = scheduled_at?.takeIf { it.isNotBlank() } ?: created_at
+    val (date, start, end) = parseCreatedAt(instant)
     val titleDisplay =
         if (completed) {
             "✓ $title"
