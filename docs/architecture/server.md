@@ -8,7 +8,7 @@ app/api/v1/endpoints/ → schemas/ → services/ → repositories/ → models/
 
 | 层 | 说明 |
 |----|------|
-| **Endpoints** | 路由处理；依赖 schemas 做入参/出参。含 **health**（`GET /api/v1/health`）、**tenants**（在配置 `TENANT_BOOTSTRAP_API_KEY` 且请求头 `X-Tenant-Bootstrap-Key` 时的引导 `POST`；带 JWT 的 `GET`）、**todos** CRUD（JWT 中带 `tenant_id`）、**speech** WebSocket（`SPEECH_REQUIRE_AUTH=true` 时通过 `?access_token=<JWT>` 鉴权）。 |
+| **Endpoints** | 路由处理；依赖 schemas 做入参/出参。含 **health**（`GET /api/v1/health`）、**auth**（注册/登录/刷新/登出）、**tenants**（在配置 `TENANT_BOOTSTRAP_API_KEY` 且请求头 `X-Tenant-Bootstrap-Key` 时的引导 `POST`；带 JWT 的 `GET`）、**todos** CRUD（JWT）、**media** 上传/下载（JWT，multipart）、**speech** WebSocket（`SPEECH_REQUIRE_AUTH=true` 时通过 `?access_token=<JWT>`）、**agent**（`POST /api/v1/agent/chat`，SSE 流，JWT）。 |
 | **Schemas** | Pydantic 模型（请求/响应）。 |
 | **Services** | 业务逻辑。 |
 | **Repositories** | 数据访问（async SQLAlchemy）。 |

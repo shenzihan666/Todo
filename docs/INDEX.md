@@ -25,6 +25,7 @@
 |------|------|--------|
 | [development/tech-stack.md](./development/tech-stack.md) | 技术栈与配置文件 | uv、PostgreSQL、Ruff、Compose、Gradle |
 | [development/commands.md](./development/commands.md) | 常用命令 | docker、uvicorn、pytest、ruff、alembic |
+| [development/environment.md](./development/environment.md) | 后端环境变量 | .env、JWT、STT、Agent、Sentry、租户引导 |
 | [development/conventions.md](./development/conventions.md) | 约定与规范 | commit、API 版本、迁移、.env、换行 |
 | [development/checklist.md](./development/checklist.md) | 提交前检查清单 | ruff、pytest、schemas |
 
