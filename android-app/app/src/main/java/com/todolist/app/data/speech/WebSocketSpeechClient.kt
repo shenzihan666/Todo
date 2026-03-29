@@ -85,31 +85,51 @@ class WebSocketSpeechClient(
 
     val messages: Flow<ServerSpeechMessage> = incoming.receiveAsFlow()
 
-    suspend fun connect(wsUrl: String): Result<Unit> = suspendCancellableCoroutine { cont ->
-        val finished = AtomicBoolean(false)
-        val request = Request.Builder().url(wsUrl).build()
-        val listener =
-            object : WebSocketListener() {
-                override fun onOpen(webSocket: WebSocket, response: Response) {
-                    this@WebSocketSpeechClient.webSocket = webSocket
-                    if (finished.compareAndSet(false, true)) {
-                        cont.resume(Result.success(Unit))
-                    }
-                }
-
-                override fun onMessage(webSocket: WebSocket, text: String) {
-                    parseServerMessage(text)?.let { incoming.trySend(it) }
-                }
-
-                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    incoming.trySend(ServerSpeechMessage.Error("ws_failure", t.message ?: "failure"))
-                    if (finished.compareAndSet(false, true)) {
-                        cont.resume(Result.failure(t))
-                    }
-                }
+    /**
+     * @param bearerToken If non-blank, sends `Authorization: Bearer` (RFC 6750). Base [wsUrl] should have no `access_token` query when using Bearer.
+     */
+    suspend fun connect(wsUrl: String, bearerToken: String? = null): Result<Unit> =
+        suspendCancellableCoroutine { cont ->
+            val finished = AtomicBoolean(false)
+            val requestBuilder = Request.Builder().url(wsUrl)
+            bearerToken?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                requestBuilder.header("Authorization", "Bearer $it")
             }
-        okHttpClient.newWebSocket(request, listener)
-    }
+            val request = requestBuilder.build()
+            val listener =
+                object : WebSocketListener() {
+                    override fun onOpen(webSocket: WebSocket, response: Response) {
+                        this@WebSocketSpeechClient.webSocket = webSocket
+                        if (finished.compareAndSet(false, true)) {
+                            cont.resume(Result.success(Unit))
+                        }
+                    }
+
+                    override fun onMessage(webSocket: WebSocket, text: String) {
+                        parseServerMessage(text)?.let { incoming.trySend(it) }
+                    }
+
+                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                        val code = response?.code
+                        val failure =
+                            if (code == 401 || code == 403) {
+                                WebSocketAuthException(code, t)
+                            } else {
+                                t
+                            }
+                        incoming.trySend(
+                            ServerSpeechMessage.Error(
+                                "ws_failure",
+                                failure.message ?: "failure",
+                            ),
+                        )
+                        if (finished.compareAndSet(false, true)) {
+                            cont.resume(Result.failure(failure))
+                        }
+                    }
+                }
+            okHttpClient.newWebSocket(request, listener)
+        }
 
     fun sendStart(config: ClientStreamConfig) {
         val payload = SpeechStartPayload(config = config)

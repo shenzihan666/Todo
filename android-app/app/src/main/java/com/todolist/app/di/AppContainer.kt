@@ -12,6 +12,7 @@ import com.todolist.app.data.repository.HealthRepositoryImpl
 import com.todolist.app.data.repository.MediaRepositoryImpl
 import com.todolist.app.data.repository.TodoRepositoryImpl
 import com.todolist.app.data.speech.RemoteSpeechTranscriber
+import com.todolist.app.data.speech.SpeechTokenProviderImpl
 import com.todolist.app.domain.repository.HealthRepository
 import com.todolist.app.domain.speech.SpeechTranscriber
 import com.todolist.app.ui.settings.buildServerBaseUrl
@@ -101,10 +102,19 @@ class AppContainer(
             .build()
     }
 
+    private val speechTokenProvider: SpeechTokenProviderImpl by lazy {
+        SpeechTokenProviderImpl(
+            prefs = userPreferencesRepository,
+            json = json,
+            plainClient = plainOkHttpClient,
+        )
+    }
+
     fun createSpeechTranscriber(): SpeechTranscriber =
         RemoteSpeechTranscriber(
             RemoteSpeechTranscriber.defaultWsClient(plainOkHttpClient),
             speechJson,
+            speechTokenProvider,
         )
 
     fun createAgentSseClient(): AgentSseClient =

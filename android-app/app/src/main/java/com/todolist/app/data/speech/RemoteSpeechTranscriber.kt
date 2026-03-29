@@ -1,6 +1,7 @@
 package com.todolist.app.data.speech
 
 import com.todolist.app.data.audio.AudioRecorder
+import com.todolist.app.domain.speech.SpeechTokenProvider
 import com.todolist.app.domain.speech.SpeechTranscriber
 import com.todolist.app.domain.speech.TranscriberState
 import kotlinx.coroutines.CompletableDeferred
@@ -22,6 +23,7 @@ import java.util.concurrent.TimeUnit
 class RemoteSpeechTranscriber(
     private val okHttpClient: OkHttpClient,
     private val json: Json,
+    private val tokenProvider: SpeechTokenProvider,
 ) : SpeechTranscriber {
 
     private val job = SupervisorJob()
@@ -42,6 +44,35 @@ class RemoteSpeechTranscriber(
     private var messageJob: Job? = null
     private var finalDeferred: CompletableDeferred<ServerSpeechMessage.Final>? = null
 
+    /**
+     * Opens WebSocket with Bearer token; on 401/403 refreshes once and retries (same as REST [TokenAuthenticator] flow).
+     */
+    private suspend fun openAuthenticatedWebSocket(serverUrl: String): WebSocketSpeechClient? {
+        val first = WebSocketSpeechClient(okHttpClient, json)
+        val t1 = tokenProvider.getAccessToken().trim()
+        var result = first.connect(serverUrl, t1.takeIf { it.isNotEmpty() })
+        if (result.isSuccess) return first
+
+        if (result.exceptionOrNull() !is WebSocketAuthException) {
+            return null
+        }
+
+        val newAccess = tokenProvider.refreshAccessToken()
+        if (newAccess == null) {
+            tokenProvider.onRefreshFailed()
+            return null
+        }
+
+        val second = WebSocketSpeechClient(okHttpClient, json)
+        result = second.connect(serverUrl, newAccess.trim().takeIf { it.isNotEmpty() })
+        if (result.isSuccess) return second
+
+        if (result.exceptionOrNull() is WebSocketAuthException) {
+            tokenProvider.onRefreshFailed()
+        }
+        return null
+    }
+
     override suspend fun startSession(serverUrl: String, language: String) {
         mutex.withLock {
             if (_state.value != TranscriberState.Idle) return
@@ -49,14 +80,12 @@ class RemoteSpeechTranscriber(
             _transcript.value = ""
             finalDeferred = null
 
-            val client = WebSocketSpeechClient(okHttpClient, json)
-            wsClient = client
-            val connected = client.connect(serverUrl)
-            if (connected.isFailure) {
+            val client = openAuthenticatedWebSocket(serverUrl) ?: run {
                 _state.value = TranscriberState.Error
                 wsClient = null
                 return
             }
+            wsClient = client
 
             client.sendStart(
                 ClientStreamConfig(

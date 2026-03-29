@@ -16,13 +16,23 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["speech"])
 
 
+def _speech_access_token(websocket: WebSocket) -> str | None:
+    """Prefer RFC 6750 Bearer in Authorization; fallback to ?access_token= for compatibility."""
+    auth = websocket.headers.get("authorization") or ""
+    if auth.lower().startswith("bearer "):
+        t = auth[7:].strip()
+        if t:
+            return t
+    return websocket.query_params.get("access_token")
+
+
 @router.websocket("/ws")
 async def speech_websocket(websocket: WebSocket) -> None:
     request_id = websocket.headers.get("X-Request-ID") or str(uuid.uuid4())
     tenant_id = "-"
 
     if settings.speech_require_auth:
-        token = websocket.query_params.get("access_token")
+        token = _speech_access_token(websocket)
         if not token:
             await websocket.close(code=1008)
             return
