@@ -1,6 +1,6 @@
 # 数据库模式概要
 
-详见 `db/init/001_schema.sql` 与 Alembic 迁移。`001_schema.sql` 中的应用表定义与 Alembic（至 `006_add_scheduled_at_on_todos`）一致，供 `scripts/init_local_db.py` 在无单独执行 `alembic upgrade` 时仍能创建完整业务表；生产/团队仍以 Alembic 为权威迁移路径。
+详见 `db/init/001_schema.sql` 与 Alembic 迁移。`001_schema.sql` 中的应用表定义与 Alembic（至 `007_add_bills`）一致，供 `scripts/init_local_db.py` 在无单独执行 `alembic upgrade` 时仍能创建完整业务表；生产/团队仍以 Alembic 为权威迁移路径。
 
 | 对象 | 说明 |
 |------|------|
@@ -9,6 +9,7 @@
 | `users` | 用户账号；关联 `tenants` |
 | `refresh_tokens` | 刷新令牌存储 |
 | `todos` | `id`、**tenant_id**（FK → `tenants`）、标题、描述、完成状态、可选 **`scheduled_at`**（用户意图日程时刻，TIMESTAMPTZ）、`created_at`、`updated_at`（迁移 `006_add_scheduled_at_on_todos`） |
+| `bills` | `id`、**tenant_id**、标题、描述、**amount**（NUMERIC(12,2)）、**type**（`income` / `expense`）、可选 **category**、可选 **billed_at**（TIMESTAMPTZ）、`created_at`、`updated_at`（迁移 `007_add_bills`） |
 | `media_uploads` | 上传文件元数据；**tenant_id** 隔离（见迁移 `004_add_media_uploads`）。Agent 多模态对话在请求中传 `media_ids` 引用本表；**无**到消息行的外键，用户轮次的附件列表由 LangGraph checkpoint 内 `HumanMessage.additional_kwargs["media_ids"]` 与历史 API 对齐。 |
 | `conversations` | Agent 对话线程元数据：`id`（UUID，与 LangGraph `thread_id` 一致）、**tenant_id**、可选 `title`、`created_at` / `updated_at`（迁移 `005_add_conversations`） |
 

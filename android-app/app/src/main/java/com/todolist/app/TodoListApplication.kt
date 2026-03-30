@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import com.todolist.app.ui.auth.AuthViewModel
 import com.todolist.app.ui.home.SpeechViewModel
+import com.todolist.app.ui.bills.BillsViewModel
 import com.todolist.app.ui.schedule.ScheduleViewModel
 import com.todolist.app.ui.settings.SettingsViewModel
 
@@ -78,6 +79,21 @@ class TodoListApplication : Application() {
                     return ScheduleViewModel(
                         application = this@TodoListApplication,
                         todoRepository = container.todoRepository,
+                        userPreferences = container.userPreferencesRepository,
+                    ) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
+            }
+        }
+
+    fun billsViewModelFactory(): ViewModelProvider.Factory =
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(BillsViewModel::class.java)) {
+                    return BillsViewModel(
+                        application = this@TodoListApplication,
+                        billRepository = container.billRepository,
                         userPreferences = container.userPreferencesRepository,
                     ) as T
                 }

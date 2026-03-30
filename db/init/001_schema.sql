@@ -78,3 +78,19 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 
 CREATE INDEX IF NOT EXISTS ix_conversations_tenant_id ON conversations (tenant_id);
+
+CREATE TABLE IF NOT EXISTS bills (
+    id SERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    title VARCHAR(512) NOT NULL,
+    description TEXT,
+    amount NUMERIC(12, 2) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    category VARCHAR(100),
+    billed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_bills_tenant_id ON bills (tenant_id);
+CREATE INDEX IF NOT EXISTS ix_bills_tenant_id_billed_at ON bills (tenant_id, billed_at);

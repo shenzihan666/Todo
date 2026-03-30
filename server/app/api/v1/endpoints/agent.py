@@ -22,6 +22,7 @@ from app.api.deps import get_tenant_id
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.exceptions import NotFoundError
+from app.repositories.bill_repository import BillRepository
 from app.repositories.media_repository import MediaRepository
 from app.repositories.todo_repository import TodoRepository
 from app.schemas.agent import (
@@ -34,12 +35,14 @@ from app.schemas.agent import (
     MemoryItemOut,
     MemoryPutBody,
 )
+from app.schemas.bill import BillCreate, BillUpdate
 from app.schemas.todo import TodoCreate, TodoUpdate
 from app.services.agent.agent_factory import build_agent
 from app.services.agent.memory_infra import memory_infra_initialized
 from app.services.agent.memory_provider import StoreMemoryProvider
 from app.services.agent.resolve_media import ResolvedMedia, resolve_media_for_agent
-from app.services.agent.tools.db_tools import _parse_scheduled_at_iso
+from app.services.agent.tools.bill_tools import _normalize_bill_type, _parse_amount
+from app.services.agent.tools.db_tools import parse_scheduled_at_iso
 from app.services.conversation_service import ConversationService
 
 logger = structlog.get_logger(__name__)
@@ -145,6 +148,41 @@ def _build_human_message(message: str, resolved: list[ResolvedMedia]) -> HumanMe
     )
 
 
+def _bill_update_from_execute_args(payload: dict[str, Any]) -> BillUpdate:
+    """Build ``BillUpdate`` from ``/execute-actions`` JSON args (no ``bill_id``)."""
+    cleaned: dict[str, Any] = {}
+    for key in ("title", "description", "amount", "type", "category", "billed_at"):
+        if key not in payload:
+            continue
+        val = payload[key]
+        if key == "billed_at":
+            if val is None or (isinstance(val, str) and not str(val).strip()):
+                cleaned[key] = None
+            else:
+                parsed = parse_scheduled_at_iso(str(val))
+                if parsed is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid billed_at for update.",
+                    )
+                cleaned[key] = parsed
+        elif key == "amount":
+            amt = _parse_amount(val)
+            if amt is None:
+                raise HTTPException(status_code=400, detail="Invalid amount for update.")
+            cleaned[key] = amt
+        elif key == "type":
+            pt = _normalize_bill_type(str(val))
+            if pt is None:
+                raise HTTPException(status_code=400, detail="Invalid type for update.")
+            cleaned[key] = pt
+        else:
+            cleaned[key] = val
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+    return BillUpdate(**cleaned)
+
+
 def _todo_update_from_execute_args(payload: dict[str, Any]) -> TodoUpdate:
     """Build ``TodoUpdate`` from ``/execute-actions`` JSON args (no ``todo_id``)."""
     cleaned: dict[str, Any] = {}
@@ -156,7 +194,7 @@ def _todo_update_from_execute_args(payload: dict[str, Any]) -> TodoUpdate:
             if val is None or (isinstance(val, str) and not str(val).strip()):
                 cleaned[key] = None
             else:
-                parsed = _parse_scheduled_at_iso(str(val))
+                parsed = parse_scheduled_at_iso(str(val))
                 if parsed is None:
                     raise HTTPException(
                         status_code=400,
@@ -183,7 +221,12 @@ async def _stream_agent(
     """Run the agent and yield SSE-formatted chunks."""
     resolved = resolved_media or []
     proposed: list[dict[str, Any]] | None = [] if require_confirmation else None
-    agent = build_agent(tenant_id, proposed_actions=proposed)
+    clarifications: list[str] = []
+    agent = build_agent(
+        tenant_id,
+        proposed_actions=proposed,
+        clarification_questions=clarifications,
+    )
     full_reply_parts: list[str] = []
 
     stream_config: dict | None = None
@@ -245,6 +288,8 @@ async def _stream_agent(
         )
         if proposed:
             yield _sse("proposed_actions", {"actions": proposed})
+        if clarifications:
+            yield _sse("clarification", {"questions": clarifications})
         yield _sse("done", "")
 
     except Exception:
@@ -304,9 +349,96 @@ async def execute_agent_actions(
     if not body.actions:
         return ExecuteActionsResponse(executed=0, results=[])
 
-    repo = TodoRepository(session, tenant_id)
+    todo_repo = TodoRepository(session, tenant_id)
+    bill_repo = BillRepository(session, tenant_id)
     results: list[str] = []
     for item in body.actions:
+        if item.target == "bill":
+            if item.action == "create":
+                a = item.args
+                title = str(a.get("title", "")).strip()
+                if not title:
+                    raise HTTPException(status_code=400, detail="create bill action missing title")
+                amt = _parse_amount(a.get("amount"))
+                if amt is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="create bill action missing valid amount",
+                    )
+                bt = _normalize_bill_type(str(a.get("type", "")))
+                if bt is None:
+                    raise HTTPException(status_code=400, detail="create bill action missing type")
+                raw_desc = a.get("description")
+                if raw_desc is None or (isinstance(raw_desc, str) and not str(raw_desc).strip()):
+                    description = None
+                else:
+                    description = str(raw_desc)
+                raw_cat = a.get("category")
+                if raw_cat is None or (isinstance(raw_cat, str) and not str(raw_cat).strip()):
+                    category = None
+                else:
+                    category = str(raw_cat)
+                ba_raw = a.get("billed_at")
+                if ba_raw is None or (isinstance(ba_raw, str) and not str(ba_raw).strip()):
+                    billed_at = None
+                else:
+                    billed_at = parse_scheduled_at_iso(str(ba_raw))
+                    if billed_at is None:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Invalid billed_at for create bill.",
+                        )
+                bill = await bill_repo.create(
+                    BillCreate(
+                        title=title,
+                        description=description,
+                        amount=amt,
+                        type=bt,  # type: ignore[arg-type]
+                        category=category,
+                        billed_at=billed_at,
+                    ),
+                )
+                await session.commit()
+                results.append(
+                    f'Created bill #{bill.id}: "{bill.title}" ({bill.type} ¥{bill.amount})',
+                )
+            elif item.action == "update":
+                a = item.args
+                bill_id_raw = a.get("bill_id")
+                if bill_id_raw is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="update bill action missing bill_id",
+                    )
+                bill_id = int(bill_id_raw)
+                payload = {k: v for k, v in a.items() if k != "bill_id"}
+                bill = await bill_repo.get_by_id(bill_id)
+                if bill is None:
+                    raise HTTPException(status_code=404, detail=f"No bill with id {bill_id}.")
+                bu = _bill_update_from_execute_args(payload)
+                updated = await bill_repo.update(bill, bu)
+                await session.commit()
+                results.append(f'Updated bill #{updated.id}: "{updated.title}"')
+            elif item.action == "delete":
+                a = item.args
+                bill_id_raw = a.get("bill_id")
+                if bill_id_raw is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="delete bill action missing bill_id",
+                    )
+                bill_id = int(bill_id_raw)
+                bill = await bill_repo.get_by_id(bill_id)
+                if bill is None:
+                    raise HTTPException(status_code=404, detail=f"No bill with id {bill_id}.")
+                title = bill.title
+                await bill_repo.delete(bill)
+                await session.commit()
+                results.append(f'Deleted bill #{bill_id}: "{title}"')
+            else:
+                raise HTTPException(status_code=400, detail=f"Unknown action {item.action!r}")
+            continue
+
         if item.action == "create":
             a = item.args
             title = str(a.get("title", "")).strip()
@@ -318,8 +450,8 @@ async def execute_agent_actions(
             else:
                 description = str(raw_desc)
             sa_raw = a.get("scheduled_at")
-            scheduled_at = _parse_scheduled_at_iso(str(sa_raw)) if sa_raw else None
-            todo = await repo.create(
+            scheduled_at = parse_scheduled_at_iso(str(sa_raw)) if sa_raw else None
+            todo = await todo_repo.create(
                 TodoCreate(title=title, description=description, scheduled_at=scheduled_at),
             )
             await session.commit()
@@ -331,11 +463,11 @@ async def execute_agent_actions(
                 raise HTTPException(status_code=400, detail="update action missing todo_id")
             todo_id = int(todo_id_raw)
             payload = {k: v for k, v in a.items() if k != "todo_id"}
-            todo = await repo.get_by_id(todo_id)
+            todo = await todo_repo.get_by_id(todo_id)
             if todo is None:
                 raise HTTPException(status_code=404, detail=f"No todo with id {todo_id}.")
             tu = _todo_update_from_execute_args(payload)
-            updated = await repo.update(todo, tu)
+            updated = await todo_repo.update(todo, tu)
             await session.commit()
             results.append(f'Updated todo #{updated.id}: "{updated.title}"')
         elif item.action == "delete":
@@ -344,11 +476,11 @@ async def execute_agent_actions(
             if todo_id_raw is None:
                 raise HTTPException(status_code=400, detail="delete action missing todo_id")
             todo_id = int(todo_id_raw)
-            todo = await repo.get_by_id(todo_id)
+            todo = await todo_repo.get_by_id(todo_id)
             if todo is None:
                 raise HTTPException(status_code=404, detail=f"No todo with id {todo_id}.")
             title = todo.title
-            await repo.delete(todo)
+            await todo_repo.delete(todo)
             await session.commit()
             results.append(f'Deleted todo #{todo_id}: "{title}"')
         else:

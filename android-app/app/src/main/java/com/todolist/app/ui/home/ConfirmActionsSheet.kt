@@ -208,6 +208,15 @@ private fun ProposedActionRow(
                     maxLines = 4,
                 )
             }
+            val amt = action.displayAmount
+            if (!amt.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = amt,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             val sub = action.displayScheduledAt
             if (!sub.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))

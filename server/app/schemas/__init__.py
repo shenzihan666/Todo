@@ -1,4 +1,5 @@
 from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, TokenResponse
+from app.schemas.bill import BillCreate, BillRead, BillUpdate
 from app.schemas.health import HealthErrorResponse, HealthOkResponse
 from app.schemas.speech import (
     ErrorResult,
@@ -25,6 +26,9 @@ __all__ = [
     "SpeechStartMessage",
     "SpeechStopMessage",
     "StreamConfig",
+    "BillCreate",
+    "BillRead",
+    "BillUpdate",
     "TenantCreate",
     "TenantRead",
     "TokenResponse",

@@ -1,4 +1,5 @@
 from app.models.base import Base
+from app.models.bill import Bill
 from app.models.conversation import Conversation
 from app.models.media_upload import MediaUpload
 from app.models.metadata import AppMetadata
@@ -10,6 +11,7 @@ from app.models.user import User
 __all__ = [
     "Base",
     "AppMetadata",
+    "Bill",
     "Conversation",
     "MediaUpload",
     "RefreshToken",

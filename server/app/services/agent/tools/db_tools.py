@@ -16,8 +16,8 @@ logger = structlog.get_logger(__name__)
 _WEEKDAYS_CN = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
 
 
-def _parse_scheduled_at_iso(value: str | None) -> datetime | None:
-    """Parse tool argument into a timezone-aware datetime, or None if invalid."""
+def _parse_scheduled_at_iso_raw(value: str | None) -> datetime | None:
+    """Parse ISO 8601 into a timezone-aware datetime, preserving the offset (wall clock)."""
     if value is None or not str(value).strip():
         return None
     s = str(value).strip()
@@ -31,11 +31,21 @@ def _parse_scheduled_at_iso(value: str | None) -> datetime | None:
     if dt.tzinfo is None:
         logger.warning("scheduled_at_must_be_timezone_aware", value=value)
         return None
+    return dt
+
+
+def _normalize_scheduled_at_for_db(dt: datetime) -> datetime:
     return dt.astimezone(UTC)
 
 
+def parse_scheduled_at_iso(value: str | None) -> datetime | None:
+    """Parse tool/API ISO string into UTC for storage and range queries."""
+    raw = _parse_scheduled_at_iso_raw(value)
+    return _normalize_scheduled_at_for_db(raw) if raw else None
+
+
 def _format_display_scheduled_at(dt: datetime | None) -> str | None:
-    """Short Chinese weekday + HH:MM for confirmation UI."""
+    """Short Chinese weekday + HH:MM for confirmation UI (wall clock in dt's timezone)."""
     if dt is None:
         return None
     wd = _WEEKDAYS_CN[dt.weekday()]
@@ -93,8 +103,8 @@ def build_db_tools(
         Returns:
             A human-readable list of matching todos, or a note if none match.
         """
-        sf = _parse_scheduled_at_iso(scheduled_from) if scheduled_from else None
-        st = _parse_scheduled_at_iso(scheduled_to) if scheduled_to else None
+        sf = parse_scheduled_at_iso(scheduled_from) if scheduled_from else None
+        st = parse_scheduled_at_iso(scheduled_to) if scheduled_to else None
         if scheduled_from and sf is None:
             return (
                 "Invalid scheduled_from: use timezone-aware ISO 8601 "
@@ -143,11 +153,13 @@ def build_db_tools(
         Returns:
             Confirmation message with the created todo's id and title.
         """
-        parsed = _parse_scheduled_at_iso(scheduled_at)
+        raw = _parse_scheduled_at_iso_raw(scheduled_at)
+        parsed = parse_scheduled_at_iso(scheduled_at)
         if proposed_actions is not None:
             proposed_actions.append(
                 {
                     "action": "create",
+                    "target": "todo",
                     "args": {
                         "title": title,
                         "description": description or "",
@@ -155,7 +167,7 @@ def build_db_tools(
                     },
                     "display_title": title,
                     "display_scheduled_at": (
-                        _format_display_scheduled_at(parsed) if parsed else None
+                        _format_display_scheduled_at(raw) if raw else None
                     ),
                 },
             )
@@ -208,6 +220,8 @@ def build_db_tools(
             Confirmation or an error message.
         """
         payload: dict = {}
+        raw_scheduled: datetime | None = None
+        clearing_scheduled = False
         if title is not None:
             payload["title"] = title
         if description is not None:
@@ -217,11 +231,12 @@ def build_db_tools(
         if scheduled_at is not None:
             if str(scheduled_at).strip() == "":
                 payload["scheduled_at"] = None
+                clearing_scheduled = True
             else:
-                parsed_sa = _parse_scheduled_at_iso(scheduled_at)
-                if parsed_sa is None:
+                raw_scheduled = _parse_scheduled_at_iso_raw(scheduled_at)
+                if raw_scheduled is None:
                     return "Invalid scheduled_at: use timezone-aware ISO 8601, or \"\" to clear."
-                payload["scheduled_at"] = parsed_sa
+                payload["scheduled_at"] = _normalize_scheduled_at_for_db(raw_scheduled)
         if not payload:
             return "No changes: pass at least one of title, description, completed, scheduled_at."
 
@@ -233,12 +248,25 @@ def build_db_tools(
                 return f"No todo with id {todo_id}."
 
             if proposed_actions is not None:
-                display_sched = (
-                    _format_display_scheduled_at(todo.scheduled_at) if todo.scheduled_at else None
-                )
+                if scheduled_at is not None:
+                    if clearing_scheduled:
+                        display_sched: str | None = None
+                    else:
+                        display_sched = (
+                            _format_display_scheduled_at(raw_scheduled)
+                            if raw_scheduled
+                            else None
+                        )
+                else:
+                    display_sched = (
+                        _format_display_scheduled_at(todo.scheduled_at)
+                        if todo.scheduled_at
+                        else None
+                    )
                 proposed_actions.append(
                     {
                         "action": "update",
+                        "target": "todo",
                         "args": _serialize_update_args(
                             todo_id,
                             data.model_dump(exclude_unset=True),
@@ -282,6 +310,7 @@ def build_db_tools(
                 proposed_actions.append(
                     {
                         "action": "delete",
+                        "target": "todo",
                         "args": {"todo_id": todo_id},
                         "display_title": title,
                         "display_scheduled_at": display_sched,

@@ -11,6 +11,7 @@ import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.data.repository.AuthRepository
 import com.todolist.app.data.repository.HealthRepositoryImpl
 import com.todolist.app.data.repository.MediaRepositoryImpl
+import com.todolist.app.data.repository.BillRepositoryImpl
 import com.todolist.app.data.repository.TodoRepositoryImpl
 import com.todolist.app.data.speech.RemoteSpeechTranscriber
 import com.todolist.app.data.speech.SpeechTokenProviderImpl
@@ -146,6 +147,10 @@ class AppContainer(
 
     val todoRepository: TodoRepositoryImpl by lazy {
         TodoRepositoryImpl(::createApiService)
+    }
+
+    val billRepository: BillRepositoryImpl by lazy {
+        BillRepositoryImpl(::createApiService)
     }
 
     /** Coil: same authenticated OkHttp as API so `GET /api/v1/media/{id}` works in chat bubbles. */

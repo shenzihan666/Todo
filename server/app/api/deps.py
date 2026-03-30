@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.security import decode_access_token
+from app.repositories.bill_repository import BillRepository
 from app.repositories.health_repository import HealthRepository
 from app.repositories.media_repository import MediaRepository
 from app.repositories.refresh_token_repository import RefreshTokenRepository
@@ -15,6 +16,7 @@ from app.repositories.tenant_repository import TenantRepository
 from app.repositories.todo_repository import TodoRepository
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
+from app.services.bill_service import BillService
 from app.services.health_service import HealthService
 from app.services.media_service import MediaService
 from app.services.tenant_service import TenantService
@@ -99,6 +101,22 @@ async def get_todo_service(
     repo: Annotated[TodoRepository, Depends(get_todo_repository)],
 ) -> TodoService:
     return TodoService(repo)
+
+
+# ── Bill ───────────────────────────────────────────────────────────
+
+
+async def get_bill_repository(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+) -> BillRepository:
+    return BillRepository(session, tenant_id)
+
+
+async def get_bill_service(
+    repo: Annotated[BillRepository, Depends(get_bill_repository)],
+) -> BillService:
+    return BillService(repo)
 
 
 # ── Media (uploads) ────────────────────────────────────────────────

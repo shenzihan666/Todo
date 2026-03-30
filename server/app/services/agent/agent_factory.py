@@ -10,6 +10,8 @@ from app.core.config import settings
 from app.services.agent.memory_backend import make_composite_backend_factory
 from app.services.agent.memory_infra import get_checkpointer, get_store, memory_infra_initialized
 from app.services.agent.prompts import build_agent_system_prompt
+from app.services.agent.tools.bill_tools import build_bill_tools
+from app.services.agent.tools.clarification_tools import build_ask_user_questions_tool
 from app.services.agent.tools.db_tools import build_db_tools
 from app.services.agent.tools.search_tools import build_search_tool
 
@@ -34,6 +36,7 @@ def build_agent(
     tenant_id: uuid.UUID,
     *,
     proposed_actions: list | None = None,
+    clarification_questions: list[str] | None = None,
 ):
     """Build a DeepAgent for this tenant.
 
@@ -43,11 +46,17 @@ def build_agent(
 
     Pass a mutable ``proposed_actions`` list (dry-run mode) so write tools record
     operations without committing; the client confirms via ``/execute-actions``.
+
+    Pass a mutable ``clarification_questions`` list so ``ask_user_questions`` can
+    append items for the SSE ``clarification`` event.
     """
     llm = _build_llm()
     prompt = _get_system_prompt()
 
     tools = build_db_tools(tenant_id, proposed_actions=proposed_actions)
+    tools.extend(build_bill_tools(tenant_id, proposed_actions=proposed_actions))
+    cq = clarification_questions if clarification_questions is not None else []
+    tools.append(build_ask_user_questions_tool(cq))
     if settings.tavily_api_key:
         tools.append(build_search_tool(settings.tavily_api_key))
 

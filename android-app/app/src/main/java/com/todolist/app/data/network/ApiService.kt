@@ -6,6 +6,7 @@ import com.todolist.app.data.network.dto.LoginRequest
 import com.todolist.app.data.network.dto.MediaUploadResponse
 import com.todolist.app.data.network.dto.RefreshRequest
 import com.todolist.app.data.network.dto.RegisterRequest
+import com.todolist.app.data.network.dto.BillReadDto
 import com.todolist.app.data.network.dto.TodoReadDto
 import okhttp3.MultipartBody
 import retrofit2.http.Body
@@ -25,6 +26,12 @@ interface ApiService {
         @Query("limit") limit: Int = 100,
         @Query("offset") offset: Int = 0,
     ): List<TodoReadDto>
+
+    @GET("api/v1/bills")
+    suspend fun listBills(
+        @Query("limit") limit: Int = 100,
+        @Query("offset") offset: Int = 0,
+    ): List<BillReadDto>
 
     @POST("api/v1/auth/register")
     suspend fun register(@Body request: RegisterRequest): AuthResponse

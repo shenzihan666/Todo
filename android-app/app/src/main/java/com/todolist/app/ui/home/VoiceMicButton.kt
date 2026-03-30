@@ -182,42 +182,7 @@ fun VoiceMicButton(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier =
-            modifier.pointerInput(hasPermission, cancelThresholdPx) {
-                while (true) {
-                    awaitPointerEventScope {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        if (!hasPermission) {
-                            onRequestPermission()
-                            return@awaitPointerEventScope
-                        }
-                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                        isHolding = true
-                        dragOffsetY = 0f
-                        onHoldStart()
-                        var lastOffset = 0f
-                        var cancelled = false
-                        try {
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Main)
-                                val change = event.changes.firstOrNull() ?: break
-                                lastOffset = change.position.y - down.position.y
-                                dragOffsetY = lastOffset
-                                if (!change.pressed) break
-                            }
-                            cancelled = lastOffset <= -cancelThresholdPx
-                        } finally {
-                            isHolding = false
-                            dragOffsetY = 0f
-                            if (cancelled) {
-                                onCancel()
-                            } else {
-                                onHoldEnd()
-                            }
-                        }
-                    }
-                }
-            },
+        modifier = modifier,
     ) {
         val textAlpha by animateFloatAsState(
             targetValue = if (isHolding) 1f else 0f,
@@ -262,18 +227,7 @@ fun VoiceMicButton(
         )
 
         Box(
-            modifier =
-                Modifier
-                    .size(168.dp)
-                    .semantics {
-                        role = Role.Button
-                        contentDescription =
-                            if (inCancelZone) {
-                                cancelReleaseDesc
-                            } else {
-                                holdDesc
-                            }
-                    },
+            modifier = Modifier.size(168.dp),
             contentAlignment = Alignment.Center,
         ) {
             // Radial red wash when sliding into cancel zone
@@ -314,6 +268,41 @@ fun VoiceMicButton(
                 modifier =
                     Modifier
                         .size(72.dp)
+                        .pointerInput(hasPermission, cancelThresholdPx) {
+                            while (true) {
+                                awaitPointerEventScope {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    if (!hasPermission) {
+                                        onRequestPermission()
+                                        return@awaitPointerEventScope
+                                    }
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    isHolding = true
+                                    dragOffsetY = 0f
+                                    onHoldStart()
+                                    var lastOffset = 0f
+                                    var cancelled = false
+                                    try {
+                                        while (true) {
+                                            val event = awaitPointerEvent(PointerEventPass.Main)
+                                            val change = event.changes.firstOrNull() ?: break
+                                            lastOffset = change.position.y - down.position.y
+                                            dragOffsetY = lastOffset
+                                            if (!change.pressed) break
+                                        }
+                                        cancelled = lastOffset <= -cancelThresholdPx
+                                    } finally {
+                                        isHolding = false
+                                        dragOffsetY = 0f
+                                        if (cancelled) {
+                                            onCancel()
+                                        } else {
+                                            onHoldEnd()
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         .graphicsLayer {
                             scaleX = micCombinedScale
                             scaleY = micCombinedScale
@@ -321,7 +310,16 @@ fun VoiceMicButton(
                         .background(
                             color = micFillColor,
                             shape = CircleShape,
-                        ),
+                        )
+                        .semantics {
+                            role = Role.Button
+                            contentDescription =
+                                if (inCancelZone) {
+                                    cancelReleaseDesc
+                                } else {
+                                    holdDesc
+                                }
+                        },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(

@@ -59,9 +59,11 @@ class ProposedActionItem(BaseModel):
     """One deferred DB operation from a dry-run agent turn."""
 
     action: Literal["create", "update", "delete"]
+    target: Literal["todo", "bill"] = "todo"
     args: dict[str, Any] = Field(default_factory=dict)
     display_title: str
     display_scheduled_at: str | None = None
+    display_amount: str | None = None
 
 
 class ExecuteActionsRequest(BaseModel):
@@ -73,13 +75,20 @@ class ExecuteActionsResponse(BaseModel):
     results: list[str]
 
 
+class ClarificationSsePayload(BaseModel):
+    """Payload for ``event: clarification`` (questions from ``ask_user_questions``)."""
+
+    questions: list[str] = Field(..., description="Clarifying questions recorded for this turn.")
+
+
 class AgentChatEvent(BaseModel):
     """Single SSE event pushed to the client."""
 
     event: str = Field(
         ...,
         description=(
-            "Event type: token, tool_call, tool_result, proposed_actions, done, error, thread"
+            "Event type: token, tool_call, tool_result, proposed_actions, clarification, "
+            "done, error, thread"
         ),
     )
     data: str | dict = Field(..., description="Event payload")

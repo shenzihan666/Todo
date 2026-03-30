@@ -452,6 +452,9 @@ class SpeechViewModel(
                         }
                         is AgentSseEvent.ToolCall -> {}
                         is AgentSseEvent.ToolResult -> {}
+                        is AgentSseEvent.Clarification -> {
+                            // Structured questions; UI copy is typically already in the streamed reply.
+                        }
                     }
                 }
             } finally {

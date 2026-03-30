@@ -34,6 +34,9 @@ sealed class AgentSseEvent {
 
     data class ProposedActions(val actions: List<ProposedAction>) : AgentSseEvent()
 
+    /** From ``ask_user_questions``; assistant text usually repeats these in the token stream. */
+    data class Clarification(val questions: List<String>) : AgentSseEvent()
+
     data object Done : AgentSseEvent()
 
     data class Error(val message: String) : AgentSseEvent()
@@ -42,9 +45,11 @@ sealed class AgentSseEvent {
 @Serializable
 data class ProposedAction(
     val action: String,
+    val target: String = "todo",
     val args: JsonObject = JsonObject(emptyMap()),
     @SerialName("display_title") val displayTitle: String,
     @SerialName("display_scheduled_at") val displayScheduledAt: String? = null,
+    @SerialName("display_amount") val displayAmount: String? = null,
 )
 
 @Serializable
@@ -221,6 +226,7 @@ class AgentSseClient(
                     out.emit(AgentSseEvent.ToolResult(tool, content))
                 }
                 "proposed_actions" -> parseProposedActions(out, data)
+                "clarification" -> parseClarification(out, data)
                 "done" -> out.emit(AgentSseEvent.Done)
                 "error" -> out.emit(AgentSseEvent.Error(parseErrorPayload(data)))
                 else -> {}
@@ -258,6 +264,25 @@ class AgentSseClient(
             }
         if (actions.isNotEmpty()) {
             out.emit(AgentSseEvent.ProposedActions(actions))
+        }
+    }
+
+    private suspend fun parseClarification(
+        out: FlowCollector<AgentSseEvent>,
+        raw: String,
+    ) {
+        val obj = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return
+        val arr = obj["questions"]?.jsonArray ?: return
+        val questions =
+            arr.mapNotNull { el ->
+                when (el) {
+                    is JsonPrimitive ->
+                        el.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                    else -> null
+                }
+            }
+        if (questions.isNotEmpty()) {
+            out.emit(AgentSseEvent.Clarification(questions))
         }
     }
 

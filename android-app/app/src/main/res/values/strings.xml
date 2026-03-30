@@ -26,6 +26,10 @@
     <string name="schedule_more">+%1$d more</string>
     <string name="bills_title">Bills</string>
     <string name="bills_placeholder">Your bills will appear here.</string>
+    <string name="bills_empty">No bills yet.</string>
+    <string name="bills_load_failed">Could not load bills.</string>
+    <string name="bill_type_income">Income</string>
+    <string name="bill_type_expense">Expense</string>
     <string name="voice_input_hold_desc">Hold to speak</string>
     <string name="voice_cancel_hint">Slide up to cancel</string>
     <string name="voice_cancel_release">Release to cancel</string>
