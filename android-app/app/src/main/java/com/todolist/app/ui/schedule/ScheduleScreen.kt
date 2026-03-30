@@ -12,17 +12,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todolist.app.R
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.temporal.TemporalAdjusters
+import kotlinx.coroutines.launch
 
 /**
  * Schedule: page 1 = chronological event list (only days with items); page 0 = month calendar.
@@ -45,6 +47,8 @@ fun ScheduleScreen(
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { 2 })
+    val scope = rememberCoroutineScope()
+    var scrollToDate by remember { mutableStateOf<LocalDate?>(null) }
     val today = remember { LocalDate.now() }
     val visibleMonth = remember { YearMonth.from(today) }
 
@@ -62,12 +66,20 @@ fun ScheduleScreen(
                         visibleMonth = visibleMonth,
                         today = today,
                         eventDates = eventDates,
+                        onDayWithEventClick = { date ->
+                            scrollToDate = date
+                            scope.launch {
+                                pagerState.animateScrollToPage(1)
+                            }
+                        },
                         modifier = Modifier.fillMaxSize(),
                     )
                 1 ->
                     ScheduleEventList(
                         events = events,
                         today = today,
+                        scrollToDate = scrollToDate,
+                        onScrollToDateConsumed = { scrollToDate = null },
                         modifier =
                             Modifier
                                 .fillMaxSize()

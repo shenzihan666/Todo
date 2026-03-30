@@ -35,6 +35,7 @@ def build_ask_user_questions_tool(out_questions: list[str]):
             "agent_tool_call",
             tool="ask_user_questions",
             question_count=len(cleaned),
+            questions=cleaned,
             context=(context[:200] if context else None),
         )
         joined = "\n".join(f"- {q}" for q in cleaned)

@@ -1,6 +1,7 @@
 package com.todolist.app.ui.schedule
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,7 @@ fun ScheduleMonthCalendar(
     visibleMonth: YearMonth,
     today: LocalDate,
     eventDates: Set<LocalDate>,
+    onDayWithEventClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val locale = Locale.getDefault()
@@ -116,6 +118,15 @@ fun ScheduleMonthCalendar(
                                                 .fillMaxSize()
                                                 .clip(RoundedCornerShape(8.dp))
                                                 .background(surface)
+                                                .then(
+                                                    if (hasEvent) {
+                                                        Modifier.clickable {
+                                                            onDayWithEventClick(cell.date)
+                                                        }
+                                                    } else {
+                                                        Modifier
+                                                    },
+                                                )
                                                 .padding(4.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {

@@ -229,6 +229,10 @@ async def _stream_agent(
     )
     full_reply_parts: list[str] = []
 
+    # Accumulate streamed tool call chunks so we can log complete calls with
+    # full argument JSON once the tool result arrives.
+    _pending_tool_calls: dict[str, dict[str, Any]] = {}
+
     stream_config: dict | None = None
     if thread_id:
         stream_config = {
@@ -239,6 +243,12 @@ async def _stream_agent(
         yield _sse("thread", {"thread_id": thread_id})
 
     human = _build_human_message(message, resolved)
+    logger.info(
+        "agent_user_message",
+        tenant_id=str(tenant_id),
+        thread_id=thread_id,
+        user_message=message,
+    )
 
     try:
         async for chunk in agent.astream(
@@ -252,20 +262,68 @@ async def _stream_agent(
 
             token, _metadata = chunk["data"]
 
-            # Tool call chunks
+            # --- Accumulate tool call chunks into complete calls ----
             if hasattr(token, "tool_call_chunks") and token.tool_call_chunks:
                 for tc in token.tool_call_chunks:
+                    idx = tc.get("index", tc.get("id", "0"))
+                    key = str(idx)
+                    if key not in _pending_tool_calls:
+                        _pending_tool_calls[key] = {"name": "", "args_json": ""}
                     name = tc.get("name")
                     if name:
+                        _pending_tool_calls[key]["name"] = name
                         yield _sse("tool_call", {"tool": name})
+                    args_chunk = tc.get("args")
+                    if args_chunk:
+                        _pending_tool_calls[key]["args_json"] += args_chunk
 
-            # Tool result messages
+            # --- Completed tool calls on non-chunked AI messages (fallback) ---
+            if isinstance(token, (AIMessage, AIMessageChunk)):
+                for tc in getattr(token, "tool_calls", []):
+                    if not _pending_tool_calls:
+                        tc_name = tc.get("name", "?")
+                        tc_args = tc.get("args", {})
+                        logger.info(
+                            "agent_tool_call_decision",
+                            tenant_id=str(tenant_id),
+                            thread_id=thread_id,
+                            tool=tc_name,
+                            tool_args=tc_args,
+                        )
+
+            # --- When a tool result comes back, log the matching request ---
             if isinstance(token, (ToolMessage, ToolMessageChunk)):
+                # Flush any pending accumulated tool calls
+                for _k, pending in list(_pending_tool_calls.items()):
+                    p_name = pending["name"]
+                    raw_args = pending["args_json"]
+                    parsed_args: Any = raw_args
+                    try:
+                        parsed_args = json.loads(raw_args) if raw_args else {}
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                    logger.info(
+                        "agent_tool_call_decision",
+                        tenant_id=str(tenant_id),
+                        thread_id=thread_id,
+                        tool=p_name,
+                        tool_args=parsed_args,
+                    )
+                _pending_tool_calls.clear()
+
+                tool_result_text = _message_content_as_text(token.content)[:500]
+                logger.info(
+                    "agent_tool_call_result",
+                    tenant_id=str(tenant_id),
+                    thread_id=thread_id,
+                    tool=token.name,
+                    result=tool_result_text,
+                )
                 yield _sse(
                     "tool_result",
                     {
                         "tool": token.name,
-                        "content": _message_content_as_text(token.content)[:500],
+                        "content": tool_result_text,
                     },
                 )
 

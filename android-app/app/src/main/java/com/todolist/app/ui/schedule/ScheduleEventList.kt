@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +63,8 @@ private fun scheduleAccentColors(): List<Color> {
 fun ScheduleEventList(
     events: List<ScheduleEvent>,
     today: LocalDate,
+    scrollToDate: LocalDate?,
+    onScrollToDateConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val locale = Locale.getDefault()
@@ -91,6 +94,16 @@ fun ScheduleEventList(
         rememberLazyListState(
             initialFirstVisibleItemIndex = anchorIndex.coerceIn(0, (days.size - 1).coerceAtLeast(0)),
         )
+
+    LaunchedEffect(scrollToDate, days) {
+        val target = scrollToDate ?: return@LaunchedEffect
+        if (days.isEmpty()) return@LaunchedEffect
+        val idx = days.indexOf(target)
+        if (idx >= 0) {
+            listState.scrollToItem(idx)
+        }
+        onScrollToDateConsumed()
+    }
 
     if (days.isEmpty()) {
         Text(

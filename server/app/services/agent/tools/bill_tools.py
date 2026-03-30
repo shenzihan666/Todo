@@ -120,6 +120,10 @@ def build_bill_tools(
             "agent_tool_call",
             tool="list_bills",
             tenant_id=str(tenant_id),
+            billed_from=billed_from,
+            billed_to=billed_to,
+            bill_type=bill_type,
+            limit=cap,
             count=len(rows),
         )
         if not rows:
@@ -137,13 +141,19 @@ def build_bill_tools(
     ) -> str:
         """Create a bill (income or expense).
 
+        IMPORTANT: Only pass ``billed_at`` when the user stated a **specific clock
+        time** (e.g. "下午4点", "4pm"). If the user only said a vague period without
+        an hour, call ``ask_user_questions`` first instead of calling this tool.
+        Similarly, if the user did not state an amount, ask before creating.
+
         Args:
             title: Short label (required).
             amount: Positive number (required).
             bill_type: ``income`` or ``expense``.
             category: Optional category label.
             description: Optional notes.
-            billed_at: Optional ISO 8601 instant with timezone for when the bill applies.
+            billed_at: Optional ISO 8601 instant with timezone. Must come from an
+                explicit user-stated time, never guessed.
         """
         parsed_type = _normalize_bill_type(bill_type)
         if parsed_type is None:
@@ -182,6 +192,11 @@ def build_bill_tools(
                 tool="create_bill",
                 tenant_id=str(tenant_id),
                 title=title,
+                amount=str(amt),
+                bill_type=parsed_type,
+                category=category or "",
+                description=description or "",
+                billed_at=billed_at,
             )
             return f'(dry-run) Would create bill: "{title}"'
 
@@ -204,6 +219,11 @@ def build_bill_tools(
                 tenant_id=str(tenant_id),
                 bill_id=str(bill.id),
                 title=title,
+                amount=str(amt),
+                bill_type=parsed_type,
+                category=category or "",
+                description=description or "",
+                billed_at=billed_at,
             )
             return f'Created bill #{bill.id}: "{bill.title}" ({bill.type} ¥{bill.amount})'
 
@@ -295,7 +315,13 @@ def build_bill_tools(
                     "agent_tool_call_dry",
                     tool="update_bill",
                     tenant_id=str(tenant_id),
-                    bill_id=str(bill_id),
+                    bill_id=bill_id,
+                    title=title,
+                    amount=str(amount) if amount is not None else None,
+                    bill_type=bill_type,
+                    category=category,
+                    description=description,
+                    billed_at=billed_at,
                 )
                 return f'(dry-run) Would update bill #{bill_id}: "{bill.title}"'
 
@@ -305,7 +331,13 @@ def build_bill_tools(
                 "agent_tool_call",
                 tool="update_bill",
                 tenant_id=str(tenant_id),
-                bill_id=str(bill_id),
+                bill_id=bill_id,
+                title=title,
+                amount=str(amount) if amount is not None else None,
+                bill_type=bill_type,
+                category=category,
+                description=description,
+                billed_at=billed_at,
             )
             return f'Updated bill #{bill.id}: "{bill.title}"'
 
@@ -338,7 +370,8 @@ def build_bill_tools(
                     "agent_tool_call_dry",
                     tool="delete_bill",
                     tenant_id=str(tenant_id),
-                    bill_id=str(bill_id),
+                    bill_id=bill_id,
+                    bill_title=title,
                 )
                 return f'(dry-run) Would delete bill #{bill_id}: "{title}"'
 
@@ -348,7 +381,8 @@ def build_bill_tools(
                 "agent_tool_call",
                 tool="delete_bill",
                 tenant_id=str(tenant_id),
-                bill_id=str(bill_id),
+                bill_id=bill_id,
+                bill_title=title,
             )
             return f'Deleted bill #{bill_id}: "{title}"'
 

@@ -131,6 +131,9 @@ def build_db_tools(
             "agent_tool_call",
             tool="list_todos",
             tenant_id=str(tenant_id),
+            scheduled_from=scheduled_from,
+            scheduled_to=scheduled_to,
+            limit=cap,
             count=len(rows),
         )
         if not rows:
@@ -145,10 +148,16 @@ def build_db_tools(
     ) -> str:
         """Create a new todo item for the user.
 
+        IMPORTANT: Only pass ``scheduled_at`` when the user stated a **specific clock
+        time** (e.g. "8点", "3pm"). If the user only said a vague period like "早上",
+        "morning", or "下午" without an hour, do NOT call this tool — call
+        ``ask_user_questions`` first to get the exact time.
+
         Args:
             title: A concise summary of the task (required).
             description: Optional extra details, deadline, or context.
-            scheduled_at: Optional ISO 8601 instant (with timezone) for when the task applies.
+            scheduled_at: Optional ISO 8601 instant (with timezone) for when the task
+                applies. Must come from an explicit user-stated time, never guessed.
 
         Returns:
             Confirmation message with the created todo's id and title.
@@ -176,6 +185,8 @@ def build_db_tools(
                 tool="create_todo",
                 tenant_id=str(tenant_id),
                 title=title,
+                description=description or "",
+                scheduled_at=scheduled_at,
             )
             return f'(dry-run) Would create todo: "{title}"'
 
@@ -195,6 +206,8 @@ def build_db_tools(
                 tenant_id=str(tenant_id),
                 todo_id=str(todo.id),
                 title=title,
+                description=description or "",
+                scheduled_at=scheduled_at,
             )
             return f'Created todo #{todo.id}: "{todo.title}"'
 
@@ -279,7 +292,11 @@ def build_db_tools(
                     "agent_tool_call_dry",
                     tool="update_todo",
                     tenant_id=str(tenant_id),
-                    todo_id=str(todo_id),
+                    todo_id=todo_id,
+                    title=title,
+                    description=description,
+                    completed=completed,
+                    scheduled_at=scheduled_at,
                 )
                 return f'(dry-run) Would update todo #{todo_id}: "{todo.title}"'
 
@@ -289,7 +306,11 @@ def build_db_tools(
                 "agent_tool_call",
                 tool="update_todo",
                 tenant_id=str(tenant_id),
-                todo_id=str(todo_id),
+                todo_id=todo_id,
+                title=title,
+                description=description,
+                completed=completed,
+                scheduled_at=scheduled_at,
             )
             return f'Updated todo #{todo.id}: "{todo.title}"'
 
@@ -320,7 +341,8 @@ def build_db_tools(
                     "agent_tool_call_dry",
                     tool="delete_todo",
                     tenant_id=str(tenant_id),
-                    todo_id=str(todo_id),
+                    todo_id=todo_id,
+                    todo_title=title,
                 )
                 return f'(dry-run) Would delete todo #{todo_id}: "{title}"'
 
@@ -330,7 +352,8 @@ def build_db_tools(
                 "agent_tool_call",
                 tool="delete_todo",
                 tenant_id=str(tenant_id),
-                todo_id=str(todo_id),
+                todo_id=todo_id,
+                todo_title=title,
             )
             return f'Deleted todo #{todo_id}: "{title}"'
 
