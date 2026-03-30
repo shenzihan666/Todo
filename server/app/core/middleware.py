@@ -1,4 +1,8 @@
-"""HTTP middleware: request context (correlation) and structured access logs."""
+"""HTTP middleware: request context (correlation) and structured access logs.
+
+Implemented as ASGI callables (not ``BaseHTTPMiddleware``) so streaming responses
+(SSE) are not buffered in memory.
+"""
 
 from __future__ import annotations
 
@@ -6,49 +10,77 @@ import time
 import uuid
 
 import structlog
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.types import ASGIApp, Receive, Scope, Send
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
 access_logger = structlog.get_logger("access")
 
 
-class ContextMiddleware(BaseHTTPMiddleware):
+class ContextMiddleware:
     """Bind request_id, tenant_id, method, path into structlog contextvars."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         clear_contextvars()
-        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-        tenant_id = request.headers.get("X-Tenant-ID", "-")
+        headers = Headers(scope=scope)
+        request_id = headers.get("x-request-id") or str(uuid.uuid4())
+        tenant_id = headers.get("x-tenant-id", "-")
 
         bind_contextvars(
             request_id=request_id,
             tenant_id=tenant_id,
-            method=request.method,
-            path=request.url.path,
+            method=scope.get("method", "-"),
+            path=scope.get("path", "-"),
         )
-        request.state.request_id = request_id
+
+        async def send_wrapper(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                response_headers = MutableHeaders(scope=message)
+                response_headers["X-Request-ID"] = request_id
+            await send(message)
+
         try:
-            response = await call_next(request)
-            response.headers["X-Request-ID"] = request_id
-            return response
+            await self.app(scope, receive, send_wrapper)
         finally:
             clear_contextvars()
 
 
-class AccessLogMiddleware(BaseHTTPMiddleware):
+class AccessLogMiddleware:
     """Emit one structured log per HTTP request with duration and status."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         start = time.perf_counter()
-        response = await call_next(request)
+        status_code = 500
+
+        async def send_wrapper(message: dict) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = int(message["status"])
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
+
+        client = scope.get("client")
+        client_ip = client[0] if client else "-"
 
         access_logger.info(
             "request_complete",
-            status_code=response.status_code,
+            status_code=status_code,
             duration_ms=duration_ms,
-            client_ip=request.client.host if request.client else "-",
+            client_ip=client_ip,
         )
-        return response

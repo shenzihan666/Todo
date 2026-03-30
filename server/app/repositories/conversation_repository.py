@@ -12,6 +12,10 @@ class ConversationRepository(BaseRepository):
         super().__init__(session)
         self._tenant_id = tenant_id
 
+    @property
+    def tenant_id(self) -> uuid.UUID:
+        return self._tenant_id
+
     async def list_all(self, *, limit: int = 100, offset: int = 0) -> list[Conversation]:
         result = await self.session.execute(
             select(Conversation)

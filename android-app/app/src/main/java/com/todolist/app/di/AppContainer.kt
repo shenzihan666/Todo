@@ -24,6 +24,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -122,15 +123,19 @@ class AppContainer(
     fun createAgentSseClient(): AgentSseClient =
         AgentSseClient(authenticatedAgentOkHttpClient, json)
 
+    private val apiServiceByBaseUrl = ConcurrentHashMap<String, ApiService>()
+
     fun createApiService(baseUrl: String): ApiService {
         val base = baseUrl.trim().trimEnd('/') + "/"
-        val mediaType = "application/json".toMediaType()
-        return Retrofit.Builder()
-            .baseUrl(base)
-            .client(authenticatedOkHttpClient)
-            .addConverterFactory(json.asConverterFactory(mediaType))
-            .build()
-            .create(ApiService::class.java)
+        return apiServiceByBaseUrl.computeIfAbsent(base) { key ->
+            val mediaType = "application/json".toMediaType()
+            Retrofit.Builder()
+                .baseUrl(key)
+                .client(authenticatedOkHttpClient)
+                .addConverterFactory(json.asConverterFactory(mediaType))
+                .build()
+                .create(ApiService::class.java)
+        }
     }
 
     val healthRepository: HealthRepository by lazy {

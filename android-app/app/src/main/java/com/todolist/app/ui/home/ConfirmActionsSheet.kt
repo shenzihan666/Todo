@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todolist.app.R
 import com.todolist.app.data.network.ProposedAction
+import com.todolist.app.ui.theme.ActionColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,7 +128,7 @@ fun ConfirmActionsSheet(
                     enabled = selected.isNotEmpty(),
                     colors =
                         ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF34C759),
+                            containerColor = ActionColors.Confirm,
                             contentColor = Color.White,
                         ),
                     shape = RoundedCornerShape(12.dp),
@@ -148,11 +149,11 @@ private fun ProposedActionRow(
     val (badgeText, badgeColor) =
         when (action.action) {
             "create" ->
-                stringResource(R.string.action_create) to Color(0xFF0A84FF)
+                stringResource(R.string.action_create) to ActionColors.Create
             "update" ->
-                stringResource(R.string.action_update) to Color(0xFFFF9F0A)
+                stringResource(R.string.action_update) to ActionColors.Update
             "delete" ->
-                stringResource(R.string.action_delete) to Color(0xFFFF453A)
+                stringResource(R.string.action_delete) to ActionColors.Delete
             else ->
                 action.action to MaterialTheme.colorScheme.outline
         }

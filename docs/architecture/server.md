@@ -13,7 +13,12 @@ app/api/v1/endpoints/ → schemas/ → services/ → repositories/ → models/
 | **Services** | 业务逻辑。 |
 | **Repositories** | 数据访问（async SQLAlchemy）。 |
 | **Models** | ORM（如 `models/todo.py`、`models/tenant.py`、`models/base.py`）。 |
-| **Core** | 配置、数据库会话、日志、异常（`core/`）。 |
+| **Core** | 配置、数据库会话、日志、异常（`core/`）；**`core/media_path.py`** 统一媒体落盘路径解析（防路径穿越），供 `services/media_service` 与 `services/agent/resolve_media` 使用。 |
+
+## HTTP 中间件与运维
+
+- 请求上下文（`X-Request-ID` / `X-Tenant-ID`）与访问日志使用 **纯 ASGI**（`core/middleware.py`），避免 `BaseHTTPMiddleware` 对流式响应（如 Agent SSE）做整包缓冲。
+- 启动时执行一次、之后每 **6 小时**清理 **`refresh_tokens`** 表中 `expires_at` 已过去的行。
 
 ## 语音（STT）
 
@@ -31,6 +36,6 @@ app/api/v1/endpoints/ → schemas/ → services/ → repositories/ → models/
 - **会话元数据**：业务表 `conversations`（`tenant_id` 隔离）登记线程；**多轮消息与图状态**由 LangGraph **`AsyncPostgresSaver`** 写入 PostgreSQL（`checkpoint_*` 等表，由 `langgraph-checkpoint-postgres` 在启动时 `setup()` 创建/迁移）。
 - **长期记忆**：Deep Agents `CompositeBackend`：`StateBackend`（线程内草稿）+ `StoreBackend` 路由到路径前缀 `/memories/`；底层为 LangGraph **`AsyncPostgresStore`**（`store` 相关表，启动时 `setup()`）。租户隔离通过 `StoreBackend` 的 **namespace**（`(str(tenant_id), "filesystem")`）实现。
 - **可插拔**：`MemoryProvider` / `StoreMemoryProvider`（`services/agent/memory_provider.py`）为后续 RAG（向量检索）预留 `retrieve(query)` 等接口；关闭记忆时设 `AGENT_MEMORY_ENABLED=false`，Agent 退化为无 checkpoint/store 的单轮行为。
-- **Todo 工具**（租户隔离）：`services/agent/tools/db_tools.py` 暴露 `list_todos`（可选 `scheduled_at` 区间）、`create_todo`、`update_todo`、`delete_todo`；**账单工具**：`services/agent/tools/bill_tools.py` 暴露 `list_bills`（可选 `billed_at` 区间与 `bill_type`）、`create_bill`、`update_bill`、`delete_bill`。`services/agent/tools/clarification_tools.py` 暴露 `ask_user_questions`（与干跑无关，仅记录追问文案供 SSE）。模型宜先 `list_todos` / `list_bills` 再按 id 更新/删除。批量删除为多次 `delete_todo` / `delete_bill`。传入可变的 `proposed_actions` 列表时进入干跑模式，写操作只追加待确认项、不 `commit`。
+- **Todo 工具**（租户隔离）：`services/agent/tools/db_tools.py` 暴露 `list_todos`（可选 `scheduled_at` 区间）、`create_todo`、`update_todo`、`delete_todo`；**账单工具**：`services/agent/tools/bill_tools.py` 暴露 `list_bills`（可选 `billed_at` 区间与 `bill_type`）、`create_bill`、`update_bill`、`delete_bill`。账单金额与 `income`/`expense` 解析的共享逻辑在 **`services/agent/bill_parsing.py`**，供工具与 **`POST /api/v1/agent/execute-actions`** 复用。`services/agent/tools/clarification_tools.py` 暴露 `ask_user_questions`（与干跑无关，仅记录追问文案供 SSE）。模型宜先 `list_todos` / `list_bills` 再按 id 更新/删除。批量删除为多次 `delete_todo` / `delete_bill`。传入可变的 `proposed_actions` 列表时进入干跑模式，写操作只追加待确认项、不 `commit`。
 
-相关实现：`services/agent/agent_factory.py`、`memory_infra.py`、`memory_backend.py`、`conversation_service.py`。
+相关实现：`services/agent/agent_factory.py`、`memory_infra.py`、`memory_backend.py`、`conversation_service.py`。Agent 侧会话元数据通过 **`get_conversation_service`**（注入 `ConversationRepository`）获取 **`ConversationService`**，与路由层依赖注入一致。**`media`** 子路由在 `endpoints/media.py` 内声明 **`prefix="/media"`**，`api/v1/router.py` 以 **`prefix=""`** 挂载，避免前缀重复。

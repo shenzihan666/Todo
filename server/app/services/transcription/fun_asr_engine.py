@@ -34,18 +34,16 @@ class FunAsrEngine:
     """DashScope Fun-ASR realtime; uses bidirectional streaming over WebSocket."""
 
     def __init__(self) -> None:
-        self._api_key_set = False
+        self._api_key: str | None = None
+        self._ws_url: str | None = None
 
     def load(self) -> None:
-        """Configure DashScope global API key and WebSocket URL from settings."""
-        import dashscope
-
+        """Persist API key and WebSocket URL on this engine instance."""
         if not settings.dashscope_api_key:
             msg = "DASHSCOPE_API_KEY is required when SPEECH_ENGINE=fun_asr"
             raise RuntimeError(msg)
-        dashscope.api_key = settings.dashscope_api_key
-        dashscope.base_websocket_api_url = settings.dashscope_base_ws_url
-        self._api_key_set = True
+        self._api_key = settings.dashscope_api_key
+        self._ws_url = settings.dashscope_base_ws_url
         logger.info(
             "fun_asr_configured",
             model=settings.fun_asr_model,
@@ -53,7 +51,8 @@ class FunAsrEngine:
         )
 
     def unload(self) -> None:
-        self._api_key_set = False
+        self._api_key = None
+        self._ws_url = None
 
     def _transcribe_sync(
         self,
@@ -62,9 +61,13 @@ class FunAsrEngine:
         beam_size: int | None = None,
     ) -> TranscriptionResult:
         del beam_size  # Fun-ASR does not use beam search; kept for protocol compatibility.
-        if not self._api_key_set:
+        if not self._api_key or not self._ws_url:
             msg = "FunAsrEngine not loaded; call load() first"
             raise RuntimeError(msg)
+        import dashscope
+
+        dashscope.api_key = self._api_key
+        dashscope.base_websocket_api_url = self._ws_url
         sr = config.sample_rate
         if sr != 16000:
             logger.warning("fun_asr_sample_rate", expected=16000, got=sr)

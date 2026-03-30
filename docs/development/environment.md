@@ -15,6 +15,7 @@
 |------|------|
 | `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | PostgreSQL 连接 |
 | `DATABASE_URL` | 可选。若为空，则由上述字段组装为 `postgresql+asyncpg://…`（异步驱动） |
+| `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | SQLAlchemy 异步引擎连接池大小与溢出（默认 `5` / `10`） |
 
 Alembic 等同步工具会通过 `Settings.database_url_sync` 自动换用 `psycopg2` URL。
 
@@ -24,9 +25,12 @@ Alembic 等同步工具会通过 `Settings.database_url_sync` 自动换用 `psyc
 
 | 变量 | 说明 |
 |------|------|
+| `APP_ENVIRONMENT` | `development`（默认） \| `staging` \| `production`。非 `development` 时，若 `JWT_SECRET_KEY` 仍为占位默认值，启动会失败 |
 | `JWT_SECRET_KEY` | 签发 JWT 的密钥；生产环境必须更换 |
 | `JWT_ACCESS_EXPIRE_MINUTES` / `JWT_REFRESH_EXPIRE_DAYS` | 访问令牌 / 刷新令牌有效期 |
 | `CORS_ORIGINS` | JSON 数组字符串，如 `["http://localhost:3000"]` 或 `["*"]` |
+
+认证路由 `/api/v1/auth/*` 使用 SlowAPI 限速（按客户端 IP，如注册/登录约每分钟数次），减轻暴力破解与刷注册。
 
 Uvicorn 监听地址端口通常由启动参数或部署配置决定；`Settings` 中的 `host` / `port` 供需要时读取。
 

@@ -9,6 +9,7 @@ data class TodoReadDto(
     val title: String,
     val description: String? = null,
     val completed: Boolean,
+    val estimated_minutes: Int? = null,
     val scheduled_at: String? = null,
     val created_at: String,
     val updated_at: String,

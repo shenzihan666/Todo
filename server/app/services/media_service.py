@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
+from app.core.media_path import resolve_upload_file_path
 from app.repositories.media_repository import MediaRepository
 from app.schemas.media import MediaRead
 
@@ -20,18 +21,7 @@ _ALLOWED_MIME_TO_EXT: dict[str, str] = {
     "image/gif": ".gif",
 }
 
-
-def _absolute_stored_path(stored_path: str) -> Path:
-    root = Path(settings.media_upload_dir).resolve()
-    return (root / stored_path).resolve()
-
-
-def _ensure_under_root(full: Path) -> None:
-    root = Path(settings.media_upload_dir).resolve()
-    try:
-        full.relative_to(root)
-    except ValueError as e:
-        raise NotFoundError("Media", str(full)) from e
+_READ_CHUNK = 64 * 1024
 
 
 class MediaService:
@@ -39,12 +29,23 @@ class MediaService:
         self._repo = repo
 
     async def create_upload(self, file: UploadFile) -> MediaRead:
-        body = await file.read()
-        if len(body) > settings.media_max_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="file_too_large",
-            )
+        max_bytes = settings.media_max_bytes
+        chunk_size = min(_READ_CHUNK, max_bytes)
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="file_too_large",
+                )
+            chunks.append(chunk)
+
+        body = b"".join(chunks)
         if len(body) == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -97,8 +98,10 @@ class MediaService:
         if not row:
             raise NotFoundError("Media", str(media_id))
 
-        full = _absolute_stored_path(row.stored_path)
-        _ensure_under_root(full)
+        try:
+            full = resolve_upload_file_path(row.stored_path)
+        except ValueError:
+            raise NotFoundError("Media", str(row.stored_path)) from None
         if not full.is_file():
             logger.error("media_file_missing_on_disk", path=str(full), media_id=str(media_id))
             raise NotFoundError("Media", str(media_id))

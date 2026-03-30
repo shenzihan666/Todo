@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.todolist.app.di.AppContainer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import com.todolist.app.ui.auth.AuthViewModel
 import com.todolist.app.ui.home.SpeechViewModel
 import com.todolist.app.ui.bills.BillsViewModel
@@ -17,10 +19,12 @@ class TodoListApplication : Application() {
     lateinit var container: AppContainer
         private set
 
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        runBlocking(Dispatchers.IO) {
+        applicationScope.launch {
             container.userPreferencesRepository.hydrateFromDataStore()
         }
     }

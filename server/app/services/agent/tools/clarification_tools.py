@@ -27,9 +27,7 @@ def build_ask_user_questions_tool(out_questions: list[str]):
         """
         cleaned = [str(x).strip() for x in questions if str(x).strip()]
         if not cleaned:
-            return (
-                "No valid questions were provided. Pass at least one non-empty question string."
-            )
+            return "No valid questions were provided. Pass at least one non-empty question string."
         out_questions.extend(cleaned)
         logger.info(
             "agent_tool_call",

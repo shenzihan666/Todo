@@ -34,7 +34,12 @@ class AgentHistoryMessageOut(BaseModel):
 
 
 class AgentChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, description="User message to send to the agent")
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=10_000,
+        description="User message to send to the agent",
+    )
     thread_id: uuid.UUID | None = Field(
         None,
         description="Existing conversation thread id; omit to start a new thread",
@@ -115,4 +120,4 @@ class MemoryItemOut(BaseModel):
 
 
 class MemoryPutBody(BaseModel):
-    content: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1, max_length=10_000)

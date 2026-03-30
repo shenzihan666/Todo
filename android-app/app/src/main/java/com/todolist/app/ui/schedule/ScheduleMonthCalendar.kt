@@ -21,11 +21,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.time.temporal.WeekFields
 import java.util.Locale
 
 @Composable
@@ -43,8 +43,9 @@ fun ScheduleMonthCalendar(
         }
     val weekDays =
         remember(locale) {
-            DayOfWeek.values().map { day ->
-                day.getDisplayName(TextStyle.NARROW, locale)
+            val first = WeekFields.of(locale).firstDayOfWeek
+            (0..6).map { i ->
+                first.plus(i.toLong()).getDisplayName(TextStyle.NARROW, locale)
             }
         }
 
@@ -67,7 +68,9 @@ fun ScheduleMonthCalendar(
             }
         }
         val firstOfMonth = visibleMonth.atDay(1)
-        val leadingBlank = (firstOfMonth.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
+        val firstDayOfWeek = WeekFields.of(locale).firstDayOfWeek
+        val leadingBlank =
+            (firstOfMonth.dayOfWeek.value - firstDayOfWeek.value + 7) % 7
         val daysInMonth = visibleMonth.lengthOfMonth()
         val cells =
             remember(visibleMonth, today, leadingBlank, daysInMonth) {

@@ -4,17 +4,15 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.exceptions import NotFoundError
+from app.models.conversation import Conversation
 from app.repositories.conversation_repository import ConversationRepository
 from app.services.agent.memory_infra import get_checkpointer, memory_infra_initialized
 
 
 class ConversationService:
-    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID) -> None:
-        self._repo = ConversationRepository(session, tenant_id)
-        self._tenant_id = tenant_id
+    def __init__(self, repo: ConversationRepository) -> None:
+        self._repo = repo
 
     async def ensure_thread(
         self,
@@ -33,7 +31,7 @@ class ConversationService:
             raise NotFoundError("conversation", str(thread_id))
         return conv.id
 
-    async def list_threads(self, *, limit: int = 100, offset: int = 0):
+    async def list_threads(self, *, limit: int = 100, offset: int = 0) -> list[Conversation]:
         return await self._repo.list_all(limit=limit, offset=offset)
 
     async def delete_thread(self, thread_id: uuid.UUID) -> None:

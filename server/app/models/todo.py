@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, false, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +27,10 @@ class Todo(Base):
         nullable=False,
         default=False,
         server_default=false(),
+    )
+    estimated_minutes: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
     )
     scheduled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

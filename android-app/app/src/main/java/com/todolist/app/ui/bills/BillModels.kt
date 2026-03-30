@@ -1,6 +1,9 @@
 package com.todolist.app.ui.bills
 
+import java.text.NumberFormat
 import java.time.LocalDate
+import java.util.Currency
+import java.util.Locale
 
 /** One row in the bills list UI. */
 data class BillListRow(
@@ -15,4 +18,8 @@ data class BillListRow(
     val sortDate: LocalDate,
 )
 
-fun formatBillAmount(amount: Double): String = String.format(java.util.Locale.US, "%.2f", amount)
+fun formatBillAmount(amount: Double): String {
+    val nf = NumberFormat.getCurrencyInstance(Locale.getDefault())
+    runCatching { nf.currency = Currency.getInstance("CNY") }
+    return nf.format(amount)
+}

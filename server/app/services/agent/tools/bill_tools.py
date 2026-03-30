@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from decimal import Decimal, InvalidOperation
+from collections.abc import Awaitable, Callable
+from decimal import Decimal
 from typing import Any
 
 import structlog
@@ -10,6 +11,7 @@ from app.core.database import SessionLocal
 from app.models.bill import Bill
 from app.repositories.bill_repository import BillRepository
 from app.schemas.bill import BillCreate, BillUpdate
+from app.services.agent.bill_parsing import normalize_bill_type, parse_amount
 from app.services.agent.tools.db_tools import (
     _format_display_scheduled_at,
     _parse_scheduled_at_iso_raw,
@@ -17,27 +19,6 @@ from app.services.agent.tools.db_tools import (
 )
 
 logger = structlog.get_logger(__name__)
-
-
-def _normalize_bill_type(value: str | None) -> str | None:
-    if value is None or not str(value).strip():
-        return None
-    s = str(value).strip().lower()
-    if s in ("income", "expense"):
-        return s
-    return None
-
-
-def _parse_amount(value: object) -> Decimal | None:
-    if value is None:
-        return None
-    try:
-        d = Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError):
-        return None
-    if d <= 0:
-        return None
-    return d.quantize(Decimal("0.01"))
 
 
 def format_display_amount(amount: Decimal, bill_type: str) -> str:
@@ -70,7 +51,7 @@ def build_bill_tools(
     tenant_id: uuid.UUID,
     *,
     proposed_actions: list[dict[str, Any]] | None = None,
-) -> list:
+) -> list[Callable[..., Awaitable[str]]]:
     """Return bill CRUD tools bound to *tenant_id* (mirrors ``build_db_tools``)."""
 
     async def list_bills(
@@ -91,18 +72,14 @@ def build_bill_tools(
         bt = parse_scheduled_at_iso(billed_to) if billed_to else None
         if billed_from and bf is None:
             return (
-                "Invalid billed_from: use timezone-aware ISO 8601 "
-                "(e.g. ending with Z or +08:00)."
+                "Invalid billed_from: use timezone-aware ISO 8601 (e.g. ending with Z or +08:00)."
             )
         if billed_to and bt is None:
-            return (
-                "Invalid billed_to: use timezone-aware ISO 8601 "
-                "(e.g. ending with Z or +08:00)."
-            )
+            return "Invalid billed_to: use timezone-aware ISO 8601 (e.g. ending with Z or +08:00)."
         if bf is not None and bt is not None and bf > bt:
             return "billed_from must be before or equal to billed_to."
 
-        normalized_type = _normalize_bill_type(bill_type)
+        normalized_type = normalize_bill_type(bill_type)
         if bill_type is not None and normalized_type is None:
             return "Invalid bill_type: use income or expense."
 
@@ -155,10 +132,10 @@ def build_bill_tools(
             billed_at: Optional ISO 8601 instant with timezone. Must come from an
                 explicit user-stated time, never guessed.
         """
-        parsed_type = _normalize_bill_type(bill_type)
+        parsed_type = normalize_bill_type(bill_type)
         if parsed_type is None:
             return "Invalid type: use income or expense."
-        amt = _parse_amount(amount)
+        amt = parse_amount(amount)
         if amt is None:
             return "Invalid amount: must be a positive number."
 
@@ -248,14 +225,14 @@ def build_bill_tools(
         if description is not None:
             payload["description"] = description
         if bill_type is not None:
-            pt = _normalize_bill_type(bill_type)
+            pt = normalize_bill_type(bill_type)
             if pt is None:
                 return "Invalid type: use income or expense."
             payload["type"] = pt
         if category is not None:
             payload["category"] = category
         if amount is not None:
-            amt = _parse_amount(amount)
+            amt = parse_amount(amount)
             if amt is None:
                 return "Invalid amount: must be a positive number."
             payload["amount"] = amt
@@ -267,7 +244,7 @@ def build_bill_tools(
                 raw_billed = _parse_scheduled_at_iso_raw(billed_at)
                 parsed_billed = parse_scheduled_at_iso(billed_at)
                 if parsed_billed is None:
-                    return "Invalid billed_at: use timezone-aware ISO 8601, or \"\" to clear."
+                    return 'Invalid billed_at: use timezone-aware ISO 8601, or "" to clear.'
                 payload["billed_at"] = parsed_billed
 
         if not payload:
@@ -290,9 +267,7 @@ def build_bill_tools(
                         display_time: str | None = None
                     else:
                         display_time = (
-                            _format_display_scheduled_at(raw_billed)
-                            if raw_billed
-                            else None
+                            _format_display_scheduled_at(raw_billed) if raw_billed else None
                         )
                 else:
                     display_time = (
@@ -351,9 +326,7 @@ def build_bill_tools(
                 return f"No bill with id {bill_id}."
             title = bill.title
             display_amt = format_display_amount(bill.amount, bill.type)
-            display_time = (
-                _format_display_scheduled_at(bill.billed_at) if bill.billed_at else None
-            )
+            display_time = _format_display_scheduled_at(bill.billed_at) if bill.billed_at else None
 
             if proposed_actions is not None:
                 proposed_actions.append(

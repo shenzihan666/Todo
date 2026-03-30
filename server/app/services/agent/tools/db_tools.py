@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -55,7 +56,8 @@ def _format_display_scheduled_at(dt: datetime | None) -> str | None:
 def _format_todo_line(todo: Todo) -> str:
     sched = todo.scheduled_at.isoformat() if todo.scheduled_at else "(no time)"
     status = "done" if todo.completed else "pending"
-    return f"  #{todo.id} [{status}] {todo.title} — scheduled: {sched}"
+    dur = f"{todo.estimated_minutes}min" if todo.estimated_minutes else "?"
+    return f"  #{todo.id} [{status}] {todo.title} — scheduled: {sched}, est: {dur}"
 
 
 def _serialize_update_args(todo_id: int, payload: dict) -> dict[str, Any]:
@@ -73,7 +75,7 @@ def build_db_tools(
     tenant_id: uuid.UUID,
     *,
     proposed_actions: list[dict[str, Any]] | None = None,
-) -> list:
+) -> list[Callable[..., Awaitable[str]]]:
     """Return DB-writing tool callables bound to *tenant_id*.
 
     Each tool manages its own DB session and commits independently so that
@@ -112,8 +114,7 @@ def build_db_tools(
             )
         if scheduled_to and st is None:
             return (
-                "Invalid scheduled_to: use timezone-aware ISO 8601 "
-                "(e.g. ending with Z or +08:00)."
+                "Invalid scheduled_to: use timezone-aware ISO 8601 (e.g. ending with Z or +08:00)."
             )
         if sf is not None and st is not None and sf > st:
             return "scheduled_from must be before or equal to scheduled_to."
@@ -145,6 +146,7 @@ def build_db_tools(
         title: str,
         description: str = "",
         scheduled_at: str | None = None,
+        estimated_minutes: int | None = None,
     ) -> str:
         """Create a new todo item for the user.
 
@@ -158,12 +160,17 @@ def build_db_tools(
             description: Optional extra details, deadline, or context.
             scheduled_at: Optional ISO 8601 instant (with timezone) for when the task
                 applies. Must come from an explicit user-stated time, never guessed.
+            estimated_minutes: Estimated duration in minutes (1–1440). Always provide
+                your best guess based on the task nature even if the user didn't say
+                how long it takes. E.g. "吃饭" → 30, "开会" → 60, "买菜" → 45,
+                "写报告" → 120. Only omit when you truly cannot estimate.
 
         Returns:
             Confirmation message with the created todo's id and title.
         """
         raw = _parse_scheduled_at_iso_raw(scheduled_at)
         parsed = parse_scheduled_at_iso(scheduled_at)
+        est = max(1, min(1440, int(estimated_minutes))) if estimated_minutes else None
         if proposed_actions is not None:
             proposed_actions.append(
                 {
@@ -173,11 +180,10 @@ def build_db_tools(
                         "title": title,
                         "description": description or "",
                         "scheduled_at": scheduled_at,
+                        "estimated_minutes": est,
                     },
                     "display_title": title,
-                    "display_scheduled_at": (
-                        _format_display_scheduled_at(raw) if raw else None
-                    ),
+                    "display_scheduled_at": (_format_display_scheduled_at(raw) if raw else None),
                 },
             )
             logger.info(
@@ -187,6 +193,7 @@ def build_db_tools(
                 title=title,
                 description=description or "",
                 scheduled_at=scheduled_at,
+                estimated_minutes=est,
             )
             return f'(dry-run) Would create todo: "{title}"'
 
@@ -196,6 +203,7 @@ def build_db_tools(
                 TodoCreate(
                     title=title,
                     description=description or None,
+                    estimated_minutes=est,
                     scheduled_at=parsed,
                 )
             )
@@ -208,6 +216,7 @@ def build_db_tools(
                 title=title,
                 description=description or "",
                 scheduled_at=scheduled_at,
+                estimated_minutes=est,
             )
             return f'Created todo #{todo.id}: "{todo.title}"'
 
@@ -217,6 +226,7 @@ def build_db_tools(
         description: str | None = None,
         completed: bool | None = None,
         scheduled_at: str | None = None,
+        estimated_minutes: int | None = None,
     ) -> str:
         """Update an existing todo by id. Omit a field to leave it unchanged.
 
@@ -228,6 +238,7 @@ def build_db_tools(
             description: New description, if changing.
             completed: Mark completed or not, if changing.
             scheduled_at: New instant in ISO 8601 with timezone, or \"\" to clear.
+            estimated_minutes: Estimated duration in minutes (1–1440), if changing.
 
         Returns:
             Confirmation or an error message.
@@ -241,6 +252,8 @@ def build_db_tools(
             payload["description"] = description
         if completed is not None:
             payload["completed"] = completed
+        if estimated_minutes is not None:
+            payload["estimated_minutes"] = max(1, min(1440, int(estimated_minutes)))
         if scheduled_at is not None:
             if str(scheduled_at).strip() == "":
                 payload["scheduled_at"] = None
@@ -248,10 +261,13 @@ def build_db_tools(
             else:
                 raw_scheduled = _parse_scheduled_at_iso_raw(scheduled_at)
                 if raw_scheduled is None:
-                    return "Invalid scheduled_at: use timezone-aware ISO 8601, or \"\" to clear."
+                    return 'Invalid scheduled_at: use timezone-aware ISO 8601, or "" to clear.'
                 payload["scheduled_at"] = _normalize_scheduled_at_for_db(raw_scheduled)
         if not payload:
-            return "No changes: pass at least one of title, description, completed, scheduled_at."
+            return (
+                "No changes: pass at least one of title, description, completed, "
+                "scheduled_at, estimated_minutes."
+            )
 
         data = TodoUpdate(**payload)
         async with SessionLocal() as session:
@@ -266,9 +282,7 @@ def build_db_tools(
                         display_sched: str | None = None
                     else:
                         display_sched = (
-                            _format_display_scheduled_at(raw_scheduled)
-                            if raw_scheduled
-                            else None
+                            _format_display_scheduled_at(raw_scheduled) if raw_scheduled else None
                         )
                 else:
                     display_sched = (

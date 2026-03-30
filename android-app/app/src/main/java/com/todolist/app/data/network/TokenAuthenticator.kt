@@ -20,55 +20,59 @@ class TokenAuthenticator(
     private val plainClient: OkHttpClient,
 ) : Authenticator {
 
+    private val refreshLock = Any()
+
     override fun authenticate(route: Route?, response: Response): Request? {
-        if (responseCount(response) >= 2) {
-            runBlocking { onRefreshFailed() }
-            return null
+        synchronized(refreshLock) {
+            if (responseCount(response) >= 2) {
+                runBlocking { onRefreshFailed() }
+                return null
+            }
+
+            val refreshToken = getRefreshToken()
+            if (refreshToken.isEmpty()) {
+                runBlocking { onRefreshFailed() }
+                return null
+            }
+
+            val body = json.encodeToString(
+                RefreshRequest.serializer(),
+                RefreshRequest(refreshToken = refreshToken),
+            )
+            val refreshRequest = Request.Builder()
+                .url("${getBaseUrl()}api/v1/auth/refresh")
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val refreshResponse = plainClient.newCall(refreshRequest).execute()
+            if (!refreshResponse.isSuccessful) {
+                refreshResponse.close()
+                runBlocking { onRefreshFailed() }
+                return null
+            }
+
+            val responseBody = refreshResponse.body?.string() ?: run {
+                runBlocking { onRefreshFailed() }
+                return null
+            }
+
+            val authResponse = json.decodeFromString(
+                com.todolist.app.data.network.dto.AuthResponse.serializer(),
+                responseBody,
+            )
+
+            val newAccess = authResponse.accessToken ?: run {
+                runBlocking { onRefreshFailed() }
+                return null
+            }
+            val newRefresh = authResponse.refreshToken ?: refreshToken
+
+            runBlocking { onTokenRefreshed(newAccess, newRefresh) }
+
+            return response.request.newBuilder()
+                .header("Authorization", "Bearer $newAccess")
+                .build()
         }
-
-        val refreshToken = getRefreshToken()
-        if (refreshToken.isEmpty()) {
-            runBlocking { onRefreshFailed() }
-            return null
-        }
-
-        val body = json.encodeToString(
-            RefreshRequest.serializer(),
-            RefreshRequest(refreshToken = refreshToken),
-        )
-        val refreshRequest = Request.Builder()
-            .url("${getBaseUrl()}api/v1/auth/refresh")
-            .post(body.toRequestBody("application/json".toMediaType()))
-            .build()
-
-        val refreshResponse = plainClient.newCall(refreshRequest).execute()
-        if (!refreshResponse.isSuccessful) {
-            refreshResponse.close()
-            runBlocking { onRefreshFailed() }
-            return null
-        }
-
-        val responseBody = refreshResponse.body?.string() ?: run {
-            runBlocking { onRefreshFailed() }
-            return null
-        }
-
-        val authResponse = json.decodeFromString(
-            com.todolist.app.data.network.dto.AuthResponse.serializer(),
-            responseBody,
-        )
-
-        val newAccess = authResponse.accessToken ?: run {
-            runBlocking { onRefreshFailed() }
-            return null
-        }
-        val newRefresh = authResponse.refreshToken ?: refreshToken
-
-        runBlocking { onTokenRefreshed(newAccess, newRefresh) }
-
-        return response.request.newBuilder()
-            .header("Authorization", "Bearer $newAccess")
-            .build()
     }
 
     private fun responseCount(response: Response): Int {

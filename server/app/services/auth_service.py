@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import structlog
@@ -82,7 +83,12 @@ class AuthService:
         token_hash = hash_refresh_token(raw_token)
         await self._refresh_repo.delete_by_hash(token_hash)
 
-    async def _issue_tokens(self, user_id, tenant_id, username: str) -> TokenResponse:
+    async def _issue_tokens(
+        self,
+        user_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+        username: str,
+    ) -> TokenResponse:
         access_token = create_access_token(
             user_id=user_id,
             tenant_id=tenant_id,

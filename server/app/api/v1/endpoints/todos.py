@@ -14,7 +14,7 @@ async def list_todos(
     service: Annotated[TodoService, Depends(get_todo_service)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
-):
+) -> list[TodoRead]:
     return await service.list_todos(limit=limit, offset=offset)
 
 
@@ -22,7 +22,7 @@ async def list_todos(
 async def create_todo(
     data: TodoCreate,
     service: Annotated[TodoService, Depends(get_todo_service)],
-):
+) -> TodoRead:
     return await service.create_todo(data)
 
 
@@ -30,7 +30,7 @@ async def create_todo(
 async def get_todo(
     todo_id: int,
     service: Annotated[TodoService, Depends(get_todo_service)],
-):
+) -> TodoRead:
     return await service.get_todo(todo_id)
 
 
@@ -39,7 +39,7 @@ async def update_todo(
     todo_id: int,
     data: TodoUpdate,
     service: Annotated[TodoService, Depends(get_todo_service)],
-):
+) -> TodoRead:
     return await service.update_todo(todo_id, data)
 
 

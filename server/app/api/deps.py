@@ -4,19 +4,23 @@ from typing import Annotated
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.security import decode_access_token
 from app.repositories.bill_repository import BillRepository
+from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.health_repository import HealthRepository
 from app.repositories.media_repository import MediaRepository
 from app.repositories.refresh_token_repository import RefreshTokenRepository
 from app.repositories.tenant_repository import TenantRepository
 from app.repositories.todo_repository import TodoRepository
 from app.repositories.user_repository import UserRepository
+from app.schemas.auth import AccessTokenPayload
 from app.services.auth_service import AuthService
 from app.services.bill_service import BillService
+from app.services.conversation_service import ConversationService
 from app.services.health_service import HealthService
 from app.services.media_service import MediaService
 from app.services.tenant_service import TenantService
@@ -40,10 +44,10 @@ async def get_health_service(
 
 def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer_scheme)],
-) -> dict:
-    """Decode JWT and return the payload dict. Raises 401 on any failure."""
+) -> AccessTokenPayload:
+    """Decode JWT and validate claims. Raises 401 on any failure."""
     try:
-        payload = decode_access_token(credentials.credentials)
+        raw = decode_access_token(credentials.credentials)
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -56,19 +60,27 @@ def get_current_user(
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
-    return payload
+    try:
+        return AccessTokenPayload.model_validate(raw)
+    except ValidationError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token claims",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from None
 
 
 def get_tenant_id(
-    user: Annotated[dict, Depends(get_current_user)],
+    user: Annotated[AccessTokenPayload, Depends(get_current_user)],
 ) -> uuid.UUID:
     """Extract tenant_id from the verified JWT payload."""
     try:
-        return uuid.UUID(user["tenant_id"])
-    except (KeyError, ValueError):
+        return uuid.UUID(user.tenant_id)
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token missing tenant_id",
+            headers={"WWW-Authenticate": "Bearer"},
         ) from None
 
 
@@ -117,6 +129,22 @@ async def get_bill_service(
     repo: Annotated[BillRepository, Depends(get_bill_repository)],
 ) -> BillService:
     return BillService(repo)
+
+
+# ── Agent conversations (threads) ─────────────────────────────────
+
+
+async def get_conversation_repository(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
+) -> ConversationRepository:
+    return ConversationRepository(session, tenant_id)
+
+
+async def get_conversation_service(
+    repo: Annotated[ConversationRepository, Depends(get_conversation_repository)],
+) -> ConversationService:
+    return ConversationService(repo)
 
 
 # ── Media (uploads) ────────────────────────────────────────────────

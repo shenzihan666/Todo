@@ -22,7 +22,7 @@ async def create_tenant(
     data: TenantCreate,
     service: Annotated[TenantService, Depends(get_tenant_service)],
     x_tenant_bootstrap_key: Annotated[str | None, Header()] = None,
-):
+) -> TenantRead:
     """Create a tenant without a user account (bootstrap only).
 
     Disabled when `tenant_bootstrap_api_key` is unset. When set, requires
@@ -43,7 +43,7 @@ async def get_tenant(
     tenant_id: uuid.UUID,
     service: Annotated[TenantService, Depends(get_tenant_service)],
     jwt_tenant_id: Annotated[uuid.UUID, Depends(get_tenant_id)],
-):
+) -> TenantRead:
     if tenant_id != jwt_tenant_id:
         raise ForbiddenError("Tenant ID does not match authenticated user")
     return await service.get_tenant(tenant_id)

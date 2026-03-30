@@ -24,11 +24,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todolist.app.R
+import com.todolist.app.ui.theme.FinanceColors
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -106,8 +106,8 @@ fun BillsScreen(
 private fun BillRowCard(row: BillListRow) {
     val accent =
         when (row.kind) {
-            "income" -> Color(0xFF34C759)
-            "expense" -> Color(0xFFFF453A)
+            "income" -> FinanceColors.Income
+            "expense" -> FinanceColors.Expense
             else -> MaterialTheme.colorScheme.primary
         }
     Surface(
@@ -150,7 +150,7 @@ private fun BillRowCard(row: BillListRow) {
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        text = "¥${row.amountLabel}",
+                        text = row.amountLabel,
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface,
                     )

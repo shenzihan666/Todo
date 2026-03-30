@@ -8,7 +8,7 @@ from app.api.deps import get_media_service
 from app.schemas.media import MediaRead
 from app.services.media_service import MediaService
 
-router = APIRouter()
+router = APIRouter(prefix="/media")
 
 
 @router.post("", response_model=MediaRead, status_code=status.HTTP_201_CREATED)

@@ -6,13 +6,12 @@ import asyncio
 import base64
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
 
 import structlog
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core.media_path import resolve_upload_file_path
 from app.repositories.media_repository import MediaRepository
 
 logger = structlog.get_logger(__name__)
@@ -27,25 +26,14 @@ class ResolvedMedia:
     base64_data: str
 
 
-def _absolute_stored_path(stored_path: str) -> Path:
-    root = Path(settings.media_upload_dir).resolve()
-    return (root / stored_path).resolve()
-
-
-def _ensure_under_root(full: Path) -> None:
-    root = Path(settings.media_upload_dir).resolve()
+def _read_file_sync(stored_path: str) -> bytes:
     try:
-        full.relative_to(root)
-    except ValueError as e:
+        full = resolve_upload_file_path(stored_path)
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="media_not_found",
-        ) from e
-
-
-def _read_file_sync(stored_path: str) -> bytes:
-    full = _absolute_stored_path(stored_path)
-    _ensure_under_root(full)
+        ) from None
     if not full.is_file():
         logger.error("media_file_missing_on_disk", path=str(full))
         raise HTTPException(

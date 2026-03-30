@@ -27,6 +27,11 @@ Omit bounds to list recent todos.
 Create a todo/task item in the user's list. Extract:
 - `title` (required): concise summary of the task
 - `description` (optional): additional details, deadlines, context
+- `estimated_minutes` (**always provide**): your best estimate of how many minutes \
+the task will take. Base it on common sense: a quick errand ~15, a meal ~30, \
+a meeting ~60, writing a report ~120, a workout ~60, grocery shopping ~45, etc. \
+If the user explicitly states a duration (e.g. "1小时的会议"), use that. \
+Range: 1–1440 (1 minute to 24 hours). Only omit when truly unknowable.
 - `scheduled_at` (optional): if the user specifies a concrete date/time for when \
 the task should happen, pass an **ISO 8601** string with timezone \
 (e.g. `2026-03-29T06:00:00+08:00` or ending with `Z` for UTC). \
@@ -36,7 +41,8 @@ when no specific time is given.
 
 ### `update_todo`
 Change a todo by numeric `todo_id` (from `list_todos`). Pass only fields to \
-change. Use `scheduled_at: ""` (empty string) to clear scheduling.
+change. Use `scheduled_at: ""` (empty string) to clear scheduling. \
+You can also update `estimated_minutes` if the user provides new duration info.
 
 ### `delete_todo`
 Remove a todo by numeric `todo_id`. When the user refers to a time range \

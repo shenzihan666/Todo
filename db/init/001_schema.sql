@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS todos (
     title VARCHAR(512) NOT NULL,
     description TEXT,
     completed BOOLEAN NOT NULL DEFAULT FALSE,
+    estimated_minutes INTEGER,
     scheduled_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -89,7 +90,8 @@ CREATE TABLE IF NOT EXISTS bills (
     category VARCHAR(100),
     billed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_bills_type_income_expense CHECK (type IN ('income', 'expense'))
 );
 
 CREATE INDEX IF NOT EXISTS ix_bills_tenant_id ON bills (tenant_id);

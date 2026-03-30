@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todolist.app.data.preferences.UserPreferencesRepository
 import com.todolist.app.data.repository.AuthRepository
+import com.todolist.app.i18n.AppLocale
 import com.todolist.app.domain.model.HealthCheckResult
 import com.todolist.app.domain.model.HealthFailureReason
 import com.todolist.app.domain.repository.HealthRepository
@@ -71,6 +72,13 @@ class SettingsViewModel(
             "",
         )
 
+    val appLocale: StateFlow<AppLocale> =
+        userPreferences.appLocale.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            AppLocale.SYSTEM,
+        )
+
     init {
         viewModelScope.launch {
             _draftServerIp.value = userPreferences.serverIp.first()
@@ -105,6 +113,12 @@ class SettingsViewModel(
         viewModelScope.launch {
             authRepository.logout()
             onDone()
+        }
+    }
+
+    fun setAppLocale(locale: AppLocale) {
+        viewModelScope.launch {
+            userPreferences.setAppLocale(locale)
         }
     }
 }

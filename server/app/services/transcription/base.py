@@ -23,6 +23,14 @@ class TranscriptionResult(BaseModel):
 class TranscriptionEngine(Protocol):
     """Implementations may wrap Faster-Whisper, cloud APIs, etc."""
 
+    def load(self) -> None:
+        """Load model or configure remote credentials (idempotent)."""
+        ...
+
+    def unload(self) -> None:
+        """Release model / clear configuration."""
+        ...
+
     async def transcribe_buffer(
         self,
         audio_pcm_s16le: bytes,

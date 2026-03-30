@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.todolist.app.i18n.AppLocale
+import com.todolist.app.i18n.applyToApplication
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -19,6 +21,7 @@ private val REFRESH_TOKEN_KEY = stringPreferencesKey("refresh_token")
 private val TENANT_ID_KEY = stringPreferencesKey("tenant_id")
 private val USERNAME_KEY = stringPreferencesKey("username")
 private val AGENT_THREAD_ID_KEY = stringPreferencesKey("agent_thread_id")
+private val APP_LOCALE_KEY = stringPreferencesKey("app_locale")
 
 class UserPreferencesRepository(
     private val context: Context,
@@ -33,12 +36,23 @@ class UserPreferencesRepository(
         prefs[SERVER_IP_KEY].orEmpty()
     }
 
+    val appLocale: Flow<AppLocale> = context.dataStore.data.map { prefs ->
+        AppLocale.fromStorageValue(prefs[APP_LOCALE_KEY])
+    }
+
     suspend fun setServerIp(ip: String) {
         val trimmed = ip.trim()
         context.dataStore.edit { prefs ->
             prefs[SERVER_IP_KEY] = trimmed
         }
         cachedServerIp.set(trimmed)
+    }
+
+    suspend fun setAppLocale(locale: AppLocale) {
+        context.dataStore.edit { prefs ->
+            prefs[APP_LOCALE_KEY] = locale.toStorageValue()
+        }
+        locale.applyToApplication()
     }
 
     val accessToken: Flow<String> = context.dataStore.data.map { prefs ->
@@ -123,6 +137,7 @@ class UserPreferencesRepository(
         cachedAccessToken.set(prefs[ACCESS_TOKEN_KEY].orEmpty())
         cachedRefreshToken.set(prefs[REFRESH_TOKEN_KEY].orEmpty())
         cachedServerIp.set(prefs[SERVER_IP_KEY].orEmpty())
+        AppLocale.fromStorageValue(prefs[APP_LOCALE_KEY]).applyToApplication()
     }
 
     fun getCachedAccessToken(): String = cachedAccessToken.get()

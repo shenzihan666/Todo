@@ -2,10 +2,8 @@
 
 from decimal import Decimal
 
-from app.services.agent.tools.bill_tools import (
-    _parse_amount,
-    format_display_amount,
-)
+from app.services.agent.bill_parsing import parse_amount
+from app.services.agent.tools.bill_tools import format_display_amount
 
 
 def test_format_display_amount() -> None:
@@ -14,8 +12,8 @@ def test_format_display_amount() -> None:
 
 
 def test_parse_amount() -> None:
-    assert _parse_amount("12.34") == Decimal("12.34")
-    assert _parse_amount(100) == Decimal("100.00")
-    assert _parse_amount(None) is None
-    assert _parse_amount("-1") is None
-    assert _parse_amount("0") is None
+    assert parse_amount("12.34") == Decimal("12.34")
+    assert parse_amount(100) == Decimal("100.00")
+    assert parse_amount(None) is None
+    assert parse_amount("-1") is None
+    assert parse_amount("0") is None

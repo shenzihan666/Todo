@@ -1,11 +1,15 @@
 package com.todolist.app.ui.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -17,11 +21,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -32,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.todolist.app.R
 import com.todolist.app.TodoListApplication
+import com.todolist.app.i18n.AppLocale
 import com.todolist.app.domain.model.HealthFailureReason
 import com.todolist.app.ui.components.TodoListAppBar
 
@@ -49,12 +57,15 @@ fun SettingsRoute(
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val validationError by viewModel.validationError.collectAsStateWithLifecycle()
     val currentUsername by viewModel.currentUsername.collectAsStateWithLifecycle()
+    val appLocale by viewModel.appLocale.collectAsStateWithLifecycle()
 
     SettingsScreen(
         modifier = modifier,
         onNavigateBack = onNavigateBack,
         onLogout = { viewModel.logout(onLoggedOut) },
         currentUsername = currentUsername,
+        selectedAppLocale = appLocale,
+        onAppLocaleChange = viewModel::setAppLocale,
         serverIp = draftIp,
         onServerIpChange = viewModel::onServerIpChange,
         onTestConnection = viewModel::testConnection,
@@ -83,8 +94,51 @@ private fun healthFailureMessage(reason: HealthFailureReason): String = when (re
             ?: stringResource(R.string.health_error_unknown)
 }
 
+private val languageRadioOptions: List<Pair<AppLocale, Int>> =
+    listOf(
+        AppLocale.SYSTEM to R.string.language_system,
+        AppLocale.EN to R.string.language_english,
+        AppLocale.ZH_CN to R.string.language_chinese_simplified,
+    )
+
+@Composable
+private fun LanguageSelection(
+    selected: AppLocale,
+    onSelect: (AppLocale) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.selectableGroup()) {
+        languageRadioOptions.forEach { (locale, labelRes) ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .selectable(
+                        selected = selected == locale,
+                        onClick = { onSelect(locale) },
+                        role = Role.RadioButton,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Start,
+            ) {
+                RadioButton(
+                    selected = selected == locale,
+                    onClick = null,
+                )
+                Text(
+                    text = stringResource(labelRes),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun SettingsFormContent(
+    selectedAppLocale: AppLocale,
+    onAppLocaleChange: (AppLocale) -> Unit,
     serverIp: String,
     onServerIpChange: (String) -> Unit,
     onTestConnection: () -> Unit,
@@ -104,6 +158,18 @@ private fun SettingsFormContent(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
+        Text(
+            text = stringResource(R.string.settings_section_language),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        LanguageSelection(
+            selected = selectedAppLocale,
+            onSelect = onAppLocaleChange,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+
         Text(
             text = stringResource(R.string.settings_section_server),
             style = MaterialTheme.typography.titleSmall,
@@ -200,6 +266,8 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onLogout: () -> Unit,
     currentUsername: String,
+    selectedAppLocale: AppLocale,
+    onAppLocaleChange: (AppLocale) -> Unit,
     serverIp: String,
     onServerIpChange: (String) -> Unit,
     onTestConnection: () -> Unit,
@@ -233,6 +301,8 @@ fun SettingsScreen(
             },
         ) { innerPadding ->
             SettingsFormContent(
+                selectedAppLocale = selectedAppLocale,
+                onAppLocaleChange = onAppLocaleChange,
                 serverIp = serverIp,
                 onServerIpChange = onServerIpChange,
                 onTestConnection = onTestConnection,
@@ -245,6 +315,8 @@ fun SettingsScreen(
         }
     } else {
         SettingsFormContent(
+            selectedAppLocale = selectedAppLocale,
+            onAppLocaleChange = onAppLocaleChange,
             serverIp = serverIp,
             onServerIpChange = onServerIpChange,
             onTestConnection = onTestConnection,

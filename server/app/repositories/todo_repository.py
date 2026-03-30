@@ -66,6 +66,7 @@ class TodoRepository(BaseRepository):
             tenant_id=self._tenant_id,
             title=data.title,
             description=data.description,
+            estimated_minutes=data.estimated_minutes,
             scheduled_at=data.scheduled_at,
         )
         self.session.add(todo)

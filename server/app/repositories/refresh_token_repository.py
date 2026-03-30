@@ -37,3 +37,10 @@ class RefreshTokenRepository(BaseRepository):
             delete(RefreshToken).where(RefreshToken.token_hash == token_hash),
         )
         await self.session.flush()
+
+    async def delete_expired(self) -> int:
+        """Remove rows with ``expires_at`` in the past. Returns deleted row count."""
+        result = await self.session.execute(
+            delete(RefreshToken).where(RefreshToken.expires_at <= datetime.now(UTC)),
+        )
+        return int(result.rowcount or 0)

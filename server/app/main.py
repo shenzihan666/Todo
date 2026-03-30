@@ -1,11 +1,15 @@
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import sentry_sdk
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sentry_sdk.integrations.fastapi import FastApiIntegration
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -20,11 +24,43 @@ from app.core.exceptions import (
     not_found_handler,
     unhandled_exception_handler,
 )
+from app.core.limiter import limiter
 from app.core.logging import configure_logging
 from app.core.middleware import AccessLogMiddleware, ContextMiddleware
 from app.services.agent.memory_infra import init_memory_infra, shutdown_memory_infra
 from app.services.transcription.faster_whisper_engine import FasterWhisperEngine
 from app.services.transcription.fun_asr_engine import FunAsrEngine
+
+logger = structlog.get_logger(__name__)
+
+
+async def _purge_expired_refresh_tokens_once() -> None:
+    from app.core.database import SessionLocal
+    from app.repositories.refresh_token_repository import RefreshTokenRepository
+
+    async with SessionLocal() as session:
+        repo = RefreshTokenRepository(session)
+        n = await repo.delete_expired()
+        await session.commit()
+        if n:
+            logger.info("refresh_tokens_purged", count=n)
+
+
+async def _refresh_token_cleanup_loop() -> None:
+    from app.core.database import SessionLocal
+    from app.repositories.refresh_token_repository import RefreshTokenRepository
+
+    while True:
+        await asyncio.sleep(3600 * 6)
+        try:
+            async with SessionLocal() as session:
+                repo = RefreshTokenRepository(session)
+                n = await repo.delete_expired()
+                await session.commit()
+                if n:
+                    logger.info("refresh_tokens_purged", count=n)
+        except Exception:
+            logger.exception("refresh_token_cleanup_failed")
 
 
 def _create_transcription_engine() -> FasterWhisperEngine | FunAsrEngine:
@@ -58,14 +94,21 @@ def create_app() -> FastAPI:
         app.state.transcription_engine = engine
         if settings.agent_memory_enabled:
             await init_memory_infra(settings.postgres_psycopg_conn_string)
+        await _purge_expired_refresh_tokens_once()
+        cleanup_task = asyncio.create_task(_refresh_token_cleanup_loop())
         try:
             yield
         finally:
+            cleanup_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await cleanup_task
             if settings.agent_memory_enabled:
                 await shutdown_memory_infra()
             engine.unload()
 
     app = FastAPI(title="TodoList API", version="0.1.0", lifespan=lifespan)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # Order: last added = outermost. CORS -> Context -> Access -> routes.
     app.add_middleware(AccessLogMiddleware)

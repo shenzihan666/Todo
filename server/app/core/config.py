@@ -3,6 +3,8 @@ from typing import Literal
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_DEFAULT_JWT_SECRET = "CHANGE-ME-in-production"  # noqa: S105
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -19,7 +21,14 @@ class Settings(BaseSettings):
 
     database_url: str = ""
 
-    jwt_secret_key: str = "CHANGE-ME-in-production"  # noqa: S105
+    # SQLAlchemy async engine pool (asyncpg)
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+
+    # When not "development", [jwt_secret_key] must not equal the placeholder (startup fails).
+    app_environment: Literal["development", "staging", "production"] = "development"
+
+    jwt_secret_key: str = _DEFAULT_JWT_SECRET  # noqa: S105
     jwt_algorithm: str = "HS256"
     jwt_access_expire_minutes: int = 30
     jwt_refresh_expire_days: int = 30
@@ -86,6 +95,16 @@ class Settings(BaseSettings):
                 f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
                 f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _reject_placeholder_jwt_outside_development(self) -> "Settings":
+        if self.app_environment != "development" and self.jwt_secret_key == _DEFAULT_JWT_SECRET:
+            msg = (
+                "JWT_SECRET_KEY must be set to a strong secret when "
+                "APP_ENVIRONMENT is not development."
+            )
+            raise ValueError(msg)
         return self
 
     @property

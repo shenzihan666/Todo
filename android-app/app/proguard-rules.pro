@@ -14,5 +14,10 @@
 -keepclassmembers class kotlinx.serialization.json.** {
     *** Companion;
 }
+-keep,includedescriptorclasses class com.todolist.app.**$$serializer { *; }
+-keepclassmembers class com.todolist.app.** { *** Companion; }
+-keepclasseswithmembers class com.todolist.app.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
 -keep @kotlinx.serialization.Serializable class com.todolist.app.data.speech.** { *; }
 -keep @kotlinx.serialization.Serializable class com.todolist.app.data.network.dto.** { *; }
