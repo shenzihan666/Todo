@@ -3,6 +3,7 @@ package com.todolist.app.ui.home
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -124,27 +126,39 @@ private fun PendingThumb(
                     .fillMaxSize()
                     .clip(RoundedCornerShape(12.dp)),
         )
-        IconButton(
-            onClick = onRemove,
+        Box(
             modifier =
                 Modifier
                     .align(Alignment.TopEnd)
                     .padding(2.dp)
-                    .size(22.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f),
-                        shape = CircleShape,
+                    .size(28.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onRemove,
                     )
                     .semantics {
                         contentDescription = removeDesc
                     },
+            contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = null,
-                modifier = Modifier.size(12.dp),
-                tint = MaterialTheme.colorScheme.onPrimary,
-            )
+            Box(
+                modifier =
+                    Modifier
+                        .size(18.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.42f),
+                            shape = CircleShape,
+                        ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(10.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
         }
     }
 }
