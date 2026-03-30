@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -116,5 +117,31 @@ fun AssistantReplyStatusRow(
                 )
             }
         }
+    }
+}
+
+/** Shown under an assistant bubble when the user cancels the action sheet; persists in history. */
+@Composable
+fun AssistantReplyCancelledStatusRow(
+    modifier: Modifier = Modifier,
+) {
+    val tint = MaterialTheme.colorScheme.error
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Start,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Cancel,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = tint,
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = stringResource(R.string.agent_status_cancelled),
+            color = tint.copy(alpha = 0.92f),
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }

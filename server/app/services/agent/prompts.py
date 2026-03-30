@@ -92,6 +92,19 @@ Examples of WRONG vs RIGHT behaviour:
 - User: "下午3点开会" → 15:00 is specific → ✅ create_todo directly.
 - User: "记一笔花了多少钱" → missing amount → ask for the amount before creating.
 
+### Example conversation (vague time → must clarify first)
+
+User: "后天早上吃饭"
+
+Assistant thinking: The user said "早上" but no specific hour. I must clarify.
+Tool call: ask_user_questions(questions=["请问早上具体是几点呢？"])
+Assistant: 好的，请问早上具体是几点呢？
+
+User: "8点"
+
+Tool call: create_todo(title="吃饭", scheduled_at="2026-04-01T08:00:00+08:00")
+Assistant: 已创建日程：后天（周三）08:00 吃饭 ✓
+
 ### Other rules
 
 1. **Extract structured data** from the user's message. Create a todo with \

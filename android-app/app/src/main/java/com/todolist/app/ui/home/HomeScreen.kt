@@ -202,30 +202,45 @@ fun HomeContent(
             items(messages, key = { it.id }) { msg ->
                 val lastAssistantId = messages.lastOrNull { !it.isUser }?.id
                 val isLatestAssistant = lastAssistantId != null && msg.id == lastAssistantId
-                if (!msg.isUser && isLatestAssistant && msg.showAgentStatusRow) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                when {
+                    !msg.isUser && msg.agentCancelled ->
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ChatBubble(
+                                text = msg.text,
+                                isUser = false,
+                                isPending = false,
+                                messageId = msg.id,
+                                useTypewriter = false,
+                                imageLoader = imageLoader,
+                            )
+                            AssistantReplyCancelledStatusRow(
+                                modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                            )
+                        }
+                    !msg.isUser && isLatestAssistant && msg.showAgentStatusRow ->
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ChatBubble(
+                                text = msg.text,
+                                isUser = false,
+                                isPending = msg.isPending,
+                                messageId = msg.id,
+                                useTypewriter = msg.isPending,
+                                imageLoader = imageLoader,
+                            )
+                            AssistantReplyStatusRow(
+                                isStreaming = msg.isPending,
+                                modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                            )
+                        }
+                    else ->
                         ChatBubble(
                             text = msg.text,
-                            isUser = false,
+                            isUser = msg.isUser,
                             isPending = msg.isPending,
-                            messageId = msg.id,
-                            useTypewriter = msg.isPending,
+                            imageUris = msg.imageUris,
+                            mediaUrls = msg.mediaUrls,
                             imageLoader = imageLoader,
                         )
-                        AssistantReplyStatusRow(
-                            isStreaming = msg.isPending,
-                            modifier = Modifier.padding(start = 4.dp, top = 6.dp),
-                        )
-                    }
-                } else {
-                    ChatBubble(
-                        text = msg.text,
-                        isUser = msg.isUser,
-                        isPending = msg.isPending,
-                        imageUris = msg.imageUris,
-                        mediaUrls = msg.mediaUrls,
-                        imageLoader = imageLoader,
-                    )
                 }
             }
 

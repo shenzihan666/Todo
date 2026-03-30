@@ -39,6 +39,11 @@ data class ChatMessage(
     val imageUris: List<Uri> = emptyList(),
     /** Authenticated `GET /api/v1/media/{id}` URLs after history restore. */
     val mediaUrls: List<String> = emptyList(),
+    /**
+     * User dismissed the confirmation sheet without executing writes; show persistent Cancel status
+     * (unlike [showAgentStatusRow] + Done, which only appears on the latest assistant bubble).
+     */
+    val agentCancelled: Boolean = false,
 )
 
 /** Pending agent write operations waiting for user confirmation (sheet). */
@@ -344,7 +349,7 @@ class SpeechViewModel(
             val selected =
                 selectedIndices.mapNotNull { idx -> pending.actions.getOrNull(idx) }
             if (selected.isEmpty()) {
-                clearPendingConfirmation(assistantId)
+                dismissPendingConfirmation(assistantId, cancelled = true)
                 return@launch
             }
             val ip = userPreferences.serverIp.first()
@@ -357,7 +362,7 @@ class SpeechViewModel(
             _errorMessage.value = null
             agentSseClient.executeActions(base, selected).fold(
                 onSuccess = {
-                    clearPendingConfirmation(assistantId)
+                    dismissPendingConfirmation(assistantId, cancelled = false)
                 },
                 onFailure = { e ->
                     _errorMessage.value =
@@ -370,12 +375,33 @@ class SpeechViewModel(
 
     fun cancelPendingConfirmation() {
         val id = _pendingConfirmation.value?.assistantMessageId ?: return
-        clearPendingConfirmation(id)
+        dismissPendingConfirmation(assistantMessageId = id, cancelled = true)
+    }
+
+    private fun dismissPendingConfirmation(
+        assistantMessageId: String,
+        cancelled: Boolean,
+    ) {
+        _pendingConfirmation.value = null
+        val app = getApplication<Application>()
+        _messages.value =
+            _messages.value.map { m ->
+                if (m.id != assistantMessageId) {
+                    m
+                } else if (cancelled) {
+                    m.copy(
+                        isPending = false,
+                        agentCancelled = true,
+                        text = app.getString(R.string.agent_chat_action_cancelled),
+                    )
+                } else {
+                    m.copy(isPending = false)
+                }
+            }
     }
 
     private fun clearPendingConfirmation(assistantMessageId: String) {
-        _pendingConfirmation.value = null
-        markAssistantFinished(assistantMessageId)
+        dismissPendingConfirmation(assistantMessageId, cancelled = false)
     }
 
     private suspend fun runAgentChat(

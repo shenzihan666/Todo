@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="agent_status_cancelled">已取消</string>
+    <string name="agent_chat_action_cancelled">已取消，未创建待办。</string>
+</resources>
