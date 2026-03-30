@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.TodoListApp" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- AppCompat base so AppCompatDelegate.setApplicationLocales (per-app language) applies and recreates the activity. -->
+    <style name="Theme.TodoListApp" parent="Theme.AppCompat.Light.NoActionBar" />
 </resources>
