@@ -26,7 +26,27 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import java.util.UUID
+
+/** One tool invocation shown under an assistant reply (persists for the session). */
+data class AgentToolInvocation(
+    val toolName: String,
+    /** Pretty-printed JSON from the server, or null if unknown. */
+    val argsJson: String?,
+    /** Truncated tool output; null while the call is in progress. */
+    val result: String?,
+)
+
+private val ToolDetailJson =
+    Json {
+        prettyPrint = true
+        ignoreUnknownKeys = true
+    }
+
+private fun jsonElementToArgsDisplay(el: JsonElement?): String? =
+    el?.let { ToolDetailJson.encodeToString(JsonElement.serializer(), it) }
 
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
@@ -44,6 +64,8 @@ data class ChatMessage(
      * (unlike [showAgentStatusRow] + Done, which only appears on the latest assistant bubble).
      */
     val agentCancelled: Boolean = false,
+    /** Tool calls for this assistant reply; collapsible UI below the bubble. */
+    val toolInvocations: List<AgentToolInvocation> = emptyList(),
 )
 
 /** Pending agent write operations waiting for user confirmation (sheet). */
@@ -476,8 +498,67 @@ class SpeechViewModel(
                                     }
                                 }
                         }
-                        is AgentSseEvent.ToolCall -> {}
-                        is AgentSseEvent.ToolResult -> {}
+                        is AgentSseEvent.ToolCall -> {
+                            if (ev.tool.isBlank()) return@collect
+                            _messages.value =
+                                _messages.value.map { m ->
+                                    if (m.id != assistantId) {
+                                        m
+                                    } else {
+                                        val inv = m.toolInvocations
+                                        val last = inv.lastOrNull()
+                                        if (last != null &&
+                                            last.toolName == ev.tool &&
+                                            last.result == null
+                                        ) {
+                                            m
+                                        } else {
+                                            m.copy(
+                                                toolInvocations =
+                                                    inv +
+                                                    AgentToolInvocation(
+                                                        toolName = ev.tool,
+                                                        argsJson = null,
+                                                        result = null,
+                                                    ),
+                                            )
+                                        }
+                                    }
+                                }
+                        }
+                        is AgentSseEvent.ToolResult -> {
+                            if (ev.tool.isBlank()) return@collect
+                            val argsStr = jsonElementToArgsDisplay(ev.args)
+                            _messages.value =
+                                _messages.value.map { m ->
+                                    if (m.id != assistantId) {
+                                        m
+                                    } else {
+                                        val inv = m.toolInvocations.toMutableList()
+                                        val idx =
+                                            inv.indexOfFirst {
+                                                it.toolName == ev.tool && it.result == null
+                                            }
+                                        if (idx >= 0) {
+                                            val cur = inv[idx]
+                                            inv[idx] =
+                                                cur.copy(
+                                                    argsJson = argsStr ?: cur.argsJson,
+                                                    result = ev.content,
+                                                )
+                                        } else {
+                                            inv.add(
+                                                AgentToolInvocation(
+                                                    toolName = ev.tool,
+                                                    argsJson = argsStr,
+                                                    result = ev.content,
+                                                ),
+                                            )
+                                        }
+                                        m.copy(toolInvocations = inv)
+                                    }
+                                }
+                        }
                         is AgentSseEvent.Clarification -> {
                             // Structured questions; UI copy is typically already in the streamed reply.
                         }

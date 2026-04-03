@@ -216,6 +216,11 @@ fun HomeContent(
                             AssistantReplyCancelledStatusRow(
                                 modifier = Modifier.padding(start = 4.dp, top = 6.dp),
                             )
+                            ToolInvocationSections(
+                                invocations = msg.toolInvocations,
+                                messageId = msg.id,
+                                modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                            )
                         }
                     !msg.isUser && isLatestAssistant && msg.showAgentStatusRow ->
                         Column(modifier = Modifier.fillMaxWidth()) {
@@ -230,6 +235,29 @@ fun HomeContent(
                             AssistantReplyStatusRow(
                                 isStreaming = msg.isPending,
                                 modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                            )
+                            ToolInvocationSections(
+                                invocations = msg.toolInvocations,
+                                messageId = msg.id,
+                                modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                            )
+                        }
+                    !msg.isUser ->
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            ChatBubble(
+                                text = msg.text,
+                                isUser = false,
+                                isPending = msg.isPending,
+                                messageId = msg.id,
+                                useTypewriter = false,
+                                imageUris = msg.imageUris,
+                                mediaUrls = msg.mediaUrls,
+                                imageLoader = imageLoader,
+                            )
+                            ToolInvocationSections(
+                                invocations = msg.toolInvocations,
+                                messageId = msg.id,
+                                modifier = Modifier.padding(start = 4.dp, top = 8.dp),
                             )
                         }
                     else ->

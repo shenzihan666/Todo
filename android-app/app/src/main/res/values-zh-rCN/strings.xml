@@ -50,6 +50,10 @@
     <string name="agent_status_processing">处理中…</string>
     <string name="agent_status_completed">完成</string>
     <string name="agent_status_cancelled">已取消</string>
+    <string name="agent_tool_detail_title">工具 · %1$s</string>
+    <string name="agent_tool_args">参数</string>
+    <string name="agent_tool_result">结果</string>
+    <string name="agent_tool_calling">调用中…</string>
     <string name="agent_chat_action_cancelled">已取消，未创建待办。</string>
     <string name="confirm_actions_title">确认 %d 项操作</string>
     <string name="action_create">创建</string>

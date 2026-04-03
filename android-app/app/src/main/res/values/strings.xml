@@ -51,6 +51,10 @@
     <string name="agent_status_processing">Processing…</string>
     <string name="agent_status_completed">Done</string>
     <string name="agent_status_cancelled">Cancel</string>
+    <string name="agent_tool_detail_title">Tool · %1$s</string>
+    <string name="agent_tool_args">Arguments</string>
+    <string name="agent_tool_result">Result</string>
+    <string name="agent_tool_calling">Calling…</string>
     <string name="agent_chat_action_cancelled">Cancelled. Nothing was created.</string>
     <string name="confirm_actions_title">Confirm %d actions</string>
     <string name="action_create">Create</string>

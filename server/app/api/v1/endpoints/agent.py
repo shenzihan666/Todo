@@ -296,21 +296,42 @@ async def _stream_agent(
 
             # --- When a tool result comes back, log the matching request ---
             if isinstance(token, (ToolMessage, ToolMessageChunk)):
-                # Flush any pending accumulated tool calls
-                for _k, pending in list(_pending_tool_calls.items()):
-                    p_name = pending["name"]
-                    raw_args = pending["args_json"]
-                    parsed_args: Any = raw_args
-                    with suppress(json.JSONDecodeError, TypeError):
-                        parsed_args = json.loads(raw_args) if raw_args else {}
-                    logger.info(
-                        "agent_tool_call_decision",
-                        tenant_id=str(tenant_id),
-                        thread_id=thread_id,
-                        tool=p_name,
-                        tool_args=parsed_args,
-                    )
-                _pending_tool_calls.clear()
+                matched_args: Any | None = None
+                matched_key: str | None = None
+                for k, pending in list(_pending_tool_calls.items()):
+                    if pending["name"] == token.name:
+                        raw_args = pending["args_json"]
+                        parsed_args: Any = raw_args
+                        with suppress(json.JSONDecodeError, TypeError):
+                            parsed_args = json.loads(raw_args) if raw_args else {}
+                        logger.info(
+                            "agent_tool_call_decision",
+                            tenant_id=str(tenant_id),
+                            thread_id=thread_id,
+                            tool=pending["name"],
+                            tool_args=parsed_args,
+                        )
+                        matched_args = parsed_args
+                        matched_key = k
+                        break
+                if matched_key is not None:
+                    del _pending_tool_calls[matched_key]
+                else:
+                    # Fallback: log any leftover pending (e.g. non-chunked tool_calls path)
+                    for _k, pending in list(_pending_tool_calls.items()):
+                        p_name = pending["name"]
+                        raw_args = pending["args_json"]
+                        parsed_args: Any = raw_args
+                        with suppress(json.JSONDecodeError, TypeError):
+                            parsed_args = json.loads(raw_args) if raw_args else {}
+                        logger.info(
+                            "agent_tool_call_decision",
+                            tenant_id=str(tenant_id),
+                            thread_id=thread_id,
+                            tool=p_name,
+                            tool_args=parsed_args,
+                        )
+                    _pending_tool_calls.clear()
 
                 tool_result_text = _message_content_as_text(token.content)[:500]
                 logger.info(
@@ -320,13 +341,13 @@ async def _stream_agent(
                     tool=token.name,
                     result=tool_result_text,
                 )
-                yield _sse(
-                    "tool_result",
-                    {
-                        "tool": token.name,
-                        "content": tool_result_text,
-                    },
-                )
+                payload: dict[str, Any] = {
+                    "tool": token.name,
+                    "content": tool_result_text,
+                }
+                if matched_args is not None:
+                    payload["args"] = matched_args
+                yield _sse("tool_result", payload)
 
             # AI text: streaming uses AIMessageChunk, whose .type is "AIMessageChunk", not "ai"
             if isinstance(token, (AIMessage, AIMessageChunk)):

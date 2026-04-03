@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -30,7 +31,12 @@ sealed class AgentSseEvent {
 
     data class ToolCall(val tool: String) : AgentSseEvent()
 
-    data class ToolResult(val tool: String, val content: String) : AgentSseEvent()
+    data class ToolResult(
+        val tool: String,
+        val content: String,
+        /** Parsed JSON from server `tool_result` `args` field when present. */
+        val args: JsonElement? = null,
+    ) : AgentSseEvent()
 
     data class ProposedActions(val actions: List<ProposedAction>) : AgentSseEvent()
 
@@ -223,7 +229,8 @@ class AgentSseClient(
                     val obj = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull()
                     val tool = obj?.get("tool")?.jsonPrimitive?.contentOrNull ?: ""
                     val content = obj?.get("content")?.jsonPrimitive?.contentOrNull ?: data
-                    out.emit(AgentSseEvent.ToolResult(tool, content))
+                    val argsEl = obj?.get("args")
+                    out.emit(AgentSseEvent.ToolResult(tool, content, argsEl))
                 }
                 "proposed_actions" -> parseProposedActions(out, data)
                 "clarification" -> parseClarification(out, data)

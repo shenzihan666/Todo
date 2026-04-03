@@ -1,21 +1,30 @@
 package com.todolist.app.ui.home
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,9 +38,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.todolist.app.R
 import kotlinx.coroutines.delay
@@ -143,5 +154,116 @@ fun AssistantReplyCancelledStatusRow(
             color = tint.copy(alpha = 0.92f),
             style = MaterialTheme.typography.bodySmall,
         )
+    }
+}
+
+/**
+ * Collapsible tool-call details under an assistant message. State is remembered per
+ * [messageId] + index so it survives list updates when new messages arrive.
+ */
+@Composable
+fun ToolInvocationSections(
+    invocations: List<AgentToolInvocation>,
+    messageId: String,
+    modifier: Modifier = Modifier,
+) {
+    if (invocations.isEmpty()) return
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        invocations.forEachIndexed { index, inv ->
+            val stableKey = "$messageId-tool-$index-${inv.toolName}"
+            ToolInvocationCollapseCard(
+                invocation = inv,
+                stableKey = stableKey,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToolInvocationCollapseCard(
+    invocation: AgentToolInvocation,
+    stableKey: String,
+) {
+    var expanded by remember(stableKey) { mutableStateOf(false) }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val cardColors =
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        colors = cardColors,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    modifier =
+                        Modifier
+                            .size(20.dp)
+                            .rotate(if (expanded) 180f else 0f),
+                    tint = muted.copy(alpha = 0.85f),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.agent_tool_detail_title, invocation.toolName),
+                    color = muted.copy(alpha = 0.92f),
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn(animationSpec = tween(180)) + expandVertically(),
+                exit = fadeOut(animationSpec = tween(140)) + shrinkVertically(),
+            ) {
+                Column(
+                    modifier =
+                        Modifier
+                            .padding(top = 6.dp, start = 4.dp, end = 4.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.agent_tool_args),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = muted.copy(alpha = 0.75f),
+                    )
+                    Text(
+                        text = invocation.argsJson ?: "—",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = stringResource(R.string.agent_tool_result),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = muted.copy(alpha = 0.75f),
+                    )
+                    Text(
+                        text = invocation.result ?: stringResource(R.string.agent_tool_calling),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }

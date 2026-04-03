@@ -40,7 +40,7 @@
 
 | 路径 | 主题 | 关键词 |
 |------|------|--------|
-| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间、账单、Agent 气泡与确认清单、聊天图片、应用内语言 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、clearTranscriptIfIdle、PendingImagesBar、Schedule、scheduled_at、estimated_minutes、ScheduleMonthCalendar、月历、HorizontalPager、Bills、billed_at、Agent SSE、流式、ConfirmActionsSheet、clarification、execute-actions、thread_id、history、agentCancelled、AttachmentImageSheet、ModalBottomSheet、MediaStore、FileProvider、READ_MEDIA_IMAGES、CAMERA、PickMultipleVisualMedia、media_ids、Coil、ImageLoader、ChatBubble、imageUris、mediaUrls、flavors、strings.xml、values-zh-rCN、i18n、AppLocale、AppCompatDelegate、localeConfig、DataStore、app_locale |
+| [platform/android.md](./platform/android.md) | Android 架构与语音、日程时间、账单、Agent 气泡与确认清单、聊天图片、应用内语言 | MVVM、Compose、WebSocket、Speech、上划取消、cancelSession、clearTranscriptIfIdle、PendingImagesBar、Schedule、scheduled_at、estimated_minutes、ScheduleMonthCalendar、月历、HorizontalPager、Bills、billed_at、Agent SSE、流式、tool_call、tool_result、toolInvocations、ToolInvocationSections、ConfirmActionsSheet、clarification、execute-actions、thread_id、history、agentCancelled、AttachmentImageSheet、ModalBottomSheet、MediaStore、FileProvider、READ_MEDIA_IMAGES、CAMERA、PickMultipleVisualMedia、media_ids、Coil、ImageLoader、ChatBubble、imageUris、mediaUrls、flavors、strings.xml、values-zh-rCN、i18n、AppLocale、AppCompatDelegate、localeConfig、DataStore、app_locale |
 
 ---
 
