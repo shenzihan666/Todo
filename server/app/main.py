@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import contextlib
 from collections.abc import AsyncIterator
@@ -28,8 +30,6 @@ from app.core.limiter import limiter
 from app.core.logging import configure_logging
 from app.core.middleware import AccessLogMiddleware, ContextMiddleware
 from app.services.agent.memory_infra import init_memory_infra, shutdown_memory_infra
-from app.services.transcription.faster_whisper_engine import FasterWhisperEngine
-from app.services.transcription.fun_asr_engine import FunAsrEngine
 
 logger = structlog.get_logger(__name__)
 
@@ -64,8 +64,14 @@ async def _refresh_token_cleanup_loop() -> None:
 
 
 def _create_transcription_engine() -> FasterWhisperEngine | FunAsrEngine:
+    # Lazy import: only pull in the selected engine (and its numpy/faster-whisper
+    # or dashscope deps). Keeps fun_asr deployments free of whisper packages.
     if settings.speech_engine == "fun_asr":
+        from app.services.transcription.fun_asr_engine import FunAsrEngine
+
         return FunAsrEngine()
+    from app.services.transcription.faster_whisper_engine import FasterWhisperEngine
+
     return FasterWhisperEngine()
 
 
